@@ -1,0 +1,78 @@
+name: Release Provider Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+env:
+  GO_VERSION: '1.24'
+  IMAGE_NAME: 'ghcr.io/${{ github.repository }}'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Unit Tests
+        run: go test -v ./...
+
+      - name: Install Crossplane CLI
+        run: |
+          curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh" | CHANNEL=stable bash
+          sudo mv crossplane /usr/local/bin/
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Provider Binary & Image
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o _output/bin/linux_amd64/provider ./cmd/provider
+          docker build -t "${{ env.IMAGE_NAME }}:${TAG}" -f cluster/images/provider-dynatrace-native/Dockerfile .
+          docker push "${{ env.IMAGE_NAME }}:${TAG}"
+
+      - name: Build and Push Crossplane Package (.xpkg)
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          crossplane xpkg build --package-root=package --embed-runtime-image="${{ env.IMAGE_NAME }}:${TAG}" --output=_output/provider-dynatrace-native-${TAG}.xpkg
+          crossplane xpkg push --package=_output/provider-dynatrace-native-${TAG}.xpkg "${{ env.IMAGE_NAME }}:${TAG}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            _output/*.xpkg
+            package/crds/*.yaml
+          generate_release_notes: true

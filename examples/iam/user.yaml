@@ -1,0 +1,20 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: User
+metadata:
+  name: test-user
+spec:
+  forProvider:
+    email: "test.native.user@example.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: ServiceUser
+metadata:
+  name: test-service-user
+spec:
+  forProvider:
+    name: "Test Native Service User"
+    description: "Service user created by Crossplane provider-dynatrace-native"
+  providerConfigRef:
+    name: default

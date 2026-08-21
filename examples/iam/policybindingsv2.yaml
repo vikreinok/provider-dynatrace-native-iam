@@ -1,0 +1,14 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: PolicyBindingsV2
+metadata:
+  name: platform-engineers-bindings
+spec:
+  forProvider:
+    group: "<your-group-uuid>"
+    account: "<your-account-id>"
+    policy:
+      - id: "<your-policy-uuid>"
+        parameters:
+          service-purpose: "platform"
+  providerConfigRef:
+    name: default

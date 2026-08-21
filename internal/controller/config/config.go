@@ -24,37 +24,13 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/crossplane/provider-template/apis/v1alpha1"
+	"github.com/vikreinok/provider-dynatrace-native-iam/apis/v1alpha1"
 )
 
-// Setup adds a controller that reconciles ProviderConfigs by accounting for
+// Setup adds a controller that reconciles ClusterProviderConfigs by accounting for
 // their current usage.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	if err := setupNamespacedProviderConfig(mgr, o); err != nil {
-		return err
-	}
 	return setupClusterProviderConfig(mgr, o)
-}
-
-func setupNamespacedProviderConfig(mgr ctrl.Manager, o controller.Options) error {
-	name := providerconfig.ControllerName(v1alpha1.ProviderConfigGroupKind)
-
-	of := resource.ProviderConfigKinds{
-		Config:    v1alpha1.ProviderConfigGroupVersionKind,
-		Usage:     v1alpha1.ProviderConfigUsageGroupVersionKind,
-		UsageList: v1alpha1.ProviderConfigUsageListGroupVersionKind,
-	}
-
-	r := providerconfig.NewReconciler(mgr, of,
-		providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
-		providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name)))) //nolint:staticcheck // TODO(jbw976) Crossplane needs to update to the new events API, see https://github.com/crossplane/crossplane/issues/7152
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		WithOptions(o.ForControllerRuntime()).
-		For(&v1alpha1.ProviderConfig{}).
-		Watches(&v1alpha1.ProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{Kind: v1alpha1.ProviderConfigKind}).
-		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
 func setupClusterProviderConfig(mgr ctrl.Manager, o controller.Options) error {

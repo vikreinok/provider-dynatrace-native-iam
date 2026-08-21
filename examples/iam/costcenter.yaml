@@ -1,0 +1,10 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: CostCenter
+metadata:
+  name: platform-eng-cc
+spec:
+  forProvider:
+    costCenter: "Platform Engineering"
+    account: "<your-account-id>"
+  providerConfigRef:
+    name: default

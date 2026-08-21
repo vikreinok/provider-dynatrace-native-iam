@@ -1,38 +1,26 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: default
----
-apiVersion: v1
 kind: Secret
 metadata:
-  namespace: default
-  name: example-provider-secret
+  name: dynatrace-creds
+  namespace: crossplane-system
 type: Opaque
-data:
-  credentials: QkFTRTY0RU5DT0RFRF9QUk9WSURFUl9DUkVEUwo=
+stringData:
+  credentials: |
+    {
+      "dt_env_url": "https://<your-env-id>.live.dynatrace.com",
+      "iam_account_id": "<your-iam-account-id>",
+      "iam_client_id": "<your-iam-client-id>",
+      "iam_client_secret": "<your-iam-client-secret>"
+    }
 ---
-apiVersion: template.crossplane.io/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: example
-  namespace: default
-spec:
-  credentials:
-    source: Secret
-    secretRef:
-      namespace: default
-      name: example-provider-secret
-      key: credentials
----
-apiVersion: template.crossplane.io/v1alpha1
+apiVersion: dynatrace.crossplane.io/v1alpha1
 kind: ClusterProviderConfig
 metadata:
-  name: example
+  name: default
 spec:
   credentials:
     source: Secret
     secretRef:
-      namespace: default
-      name: example-provider-secret
+      namespace: crossplane-system
+      name: dynatrace-creds
       key: credentials

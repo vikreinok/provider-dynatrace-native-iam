@@ -1,7 +1,7 @@
 # ====================================================================================
 # Setup Project
-PROJECT_NAME := provider-template
-PROJECT_REPO := github.com/crossplane/$(PROJECT_NAME)
+PROJECT_NAME := provider-dynatrace-native
+PROJECT_REPO := github.com/vikreinok/provider-dynatrace-native-iam
 
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
@@ -31,22 +31,22 @@ GOLANGCILINT_VERSION = 2.12.2
 # ====================================================================================
 # Setup Images
 
-IMAGES = provider-template
+IMAGES = provider-dynatrace-native
 -include build/makelib/imagelight.mk
 
 # ====================================================================================
 # Setup XPKG
 
-XPKG_REG_ORGS ?= xpkg.upbound.io/crossplane
+XPKG_REG_ORGS ?= ghcr.io/vikreinok
 # NOTE(hasheddan): skip promoting on xpkg.upbound.io as channel tags are
 # inferred.
-XPKG_REG_ORGS_NO_PROMOTE ?= xpkg.upbound.io/crossplane
-XPKGS = provider-template
+XPKG_REG_ORGS_NO_PROMOTE ?= ghcr.io/vikreinok
+XPKGS = provider-dynatrace-native
 -include build/makelib/xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
-xpkg.build.provider-template: do.build.images
+xpkg.build.provider-dynatrace-native: do.build.images
 
 fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .

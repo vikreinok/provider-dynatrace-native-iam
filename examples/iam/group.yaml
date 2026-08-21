@@ -1,0 +1,16 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-engineers
+spec:
+  forProvider:
+    name: "Platform Engineers"
+    description: "Platform engineering team managed by Crossplane"
+    federatedAttributeValues:
+      - "platform-engineers-saml"
+    permissions:
+      - permissionName: "account-viewer"
+        scope: "<your-account-id>"
+        scopeType: "account"
+  providerConfigRef:
+    name: default

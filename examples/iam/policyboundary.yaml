@@ -1,0 +1,11 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: PolicyBoundary
+metadata:
+  name: prod-boundary
+spec:
+  forProvider:
+    name: "Production MZ Boundary"
+    query: 'environment:management-zone = "Production"'
+    account: "<your-account-id>"
+  providerConfigRef:
+    name: default

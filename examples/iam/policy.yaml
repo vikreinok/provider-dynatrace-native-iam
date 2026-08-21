@@ -1,0 +1,14 @@
+apiVersion: iam.dynatrace.crossplane.io/v1alpha1
+kind: Policy
+metadata:
+  name: settings-reader-policy
+spec:
+  forProvider:
+    name: "Settings Reader Policy"
+    description: "Allows reading settings schemas and objects"
+    statementQuery: 'ALLOW settings:objects:read, settings:schemas:read;'
+    account: "<your-account-id>"
+    tags:
+      - "team:platform"
+  providerConfigRef:
+    name: default

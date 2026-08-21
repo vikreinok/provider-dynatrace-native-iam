@@ -7,3 +7,7 @@ cover.out
 .vscode
 .idea
 .DS_Store
+
+# Credentials and secrets
+secret.yaml
+hack/test-kind-e2e.sh
