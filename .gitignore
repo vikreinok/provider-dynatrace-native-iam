@@ -1,6 +1,8 @@
 /.cache
 /.work
 /_output
+/bin
+bin/
 cover.out
 /vendor
 /.vendor-new
