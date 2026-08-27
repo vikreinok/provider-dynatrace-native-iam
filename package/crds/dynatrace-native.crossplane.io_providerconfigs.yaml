@@ -4,19 +4,19 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
-  name: clusterproviderconfigs.dynatrace.crossplane.io
+  name: providerconfigs.dynatrace-native.crossplane.io
 spec:
-  group: dynatrace.crossplane.io
+  group: dynatrace-native.crossplane.io
   names:
     categories:
     - crossplane
     - provider
     - dynatrace
-    kind: ClusterProviderConfig
-    listKind: ClusterProviderConfigList
-    plural: clusterproviderconfigs
-    singular: clusterproviderconfig
-  scope: Cluster
+    kind: ProviderConfig
+    listKind: ProviderConfigList
+    plural: providerconfigs
+    singular: providerconfig
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp
@@ -29,7 +29,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A ClusterProviderConfig configures a Dynatrace provider.
+        description: A ProviderConfig configures a Dynatrace provider.
         properties:
           apiVersion:
             description: |-

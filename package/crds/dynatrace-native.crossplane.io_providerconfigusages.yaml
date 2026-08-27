@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
-  name: providerconfigusages.dynatrace.crossplane.io
+  name: providerconfigusages.dynatrace-native.crossplane.io
 spec:
-  group: dynatrace.crossplane.io
+  group: dynatrace-native.crossplane.io
   names:
     categories:
     - crossplane

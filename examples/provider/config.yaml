@@ -13,7 +13,7 @@ stringData:
       "iam_client_secret": "<your-iam-client-secret>"
     }
 ---
-apiVersion: dynatrace.crossplane.io/v1alpha1
+apiVersion: dynatrace-native.crossplane.io/v1alpha1
 kind: ClusterProviderConfig
 metadata:
   name: default

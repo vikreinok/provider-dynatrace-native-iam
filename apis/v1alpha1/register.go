@@ -9,7 +9,7 @@ import (
 
 // Package type metadata.
 const (
-	Group   = "dynatrace.crossplane.io"
+	Group   = "dynatrace-native.crossplane.io"
 	Version = "v1alpha1"
 )
 
