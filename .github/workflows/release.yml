@@ -56,18 +56,39 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Provider Binary & Image
+      - name: Build Provider Binary (Linux amd64 & arm64)
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o _output/bin/linux_amd64/provider ./cmd/provider
-          docker build -t "${{ env.IMAGE_NAME }}:${TAG}" -f cluster/images/provider-dynatrace-native/Dockerfile .
-          docker push "${{ env.IMAGE_NAME }}:${TAG}"
+          mkdir -p bin/linux_amd64 bin/linux_arm64 _output/bin/linux_amd64 _output/bin/linux_arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/linux_amd64/provider ./cmd/provider
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/linux_arm64/provider ./cmd/provider
+          cp bin/linux_amd64/provider _output/bin/linux_amd64/provider
+          cp bin/linux_arm64/provider _output/bin/linux_arm64/provider
 
-      - name: Build and Push Crossplane Package (.xpkg)
+      - name: Build Local Runtime Images (Linux amd64 & arm64)
+        run: |
+          docker build --platform linux/amd64 -t runtime-amd64 -f cluster/images/provider-dynatrace-native/Dockerfile --build-arg TARGETOS=linux --build-arg TARGETARCH=amd64 .
+          docker build --platform linux/arm64 -t runtime-arm64 -f cluster/images/provider-dynatrace-native/Dockerfile --build-arg TARGETOS=linux --build-arg TARGETARCH=arm64 .
+
+      - name: Build Crossplane Packages (.xpkg)
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          crossplane xpkg build --package-root=package --embed-runtime-image="${{ env.IMAGE_NAME }}:${TAG}" --output=_output/provider-dynatrace-native-${TAG}.xpkg
-          crossplane xpkg push --package=_output/provider-dynatrace-native-${TAG}.xpkg "${{ env.IMAGE_NAME }}:${TAG}"
+          mkdir -p _output
+          crossplane xpkg build \
+            --package-root=package \
+            --embed-runtime-image=runtime-amd64 \
+            --package-file="_output/provider-dynatrace-native-amd64-${TAG}.xpkg"
+
+          crossplane xpkg build \
+            --package-root=package \
+            --embed-runtime-image=runtime-arm64 \
+            --package-file="_output/provider-dynatrace-native-arm64-${TAG}.xpkg"
+
+      - name: Push Crossplane Packages to GHCR
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          crossplane xpkg push \
+            --package-files="_output/provider-dynatrace-native-amd64-${TAG}.xpkg,_output/provider-dynatrace-native-arm64-${TAG}.xpkg" \
+            "${{ env.IMAGE_NAME }}:${TAG}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

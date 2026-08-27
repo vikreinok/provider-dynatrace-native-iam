@@ -1,7 +1,7 @@
-apiVersion: meta.pkg.crossplane.io/v1alpha1
+apiVersion: meta.pkg.crossplane.io/v1
 kind: Provider
 metadata:
-  name: provider-dynatrace-native
+  name: provider-dynatrace-native-iam
   annotations:
     meta.crossplane.io/maintainer: Viktor Reinok <viktor.reinok@gmail.com>
     meta.crossplane.io/source: github.com/vikreinok/provider-dynatrace-native-iam
@@ -10,4 +10,4 @@ metadata:
       Native Dynatrace IAM Crossplane Provider.
 spec:
   capabilities:
-    - safe-start
+    - SafeStart

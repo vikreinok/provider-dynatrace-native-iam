@@ -65,6 +65,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
@@ -77,38 +79,29 @@ jobs:
           cp bin/linux_amd64/provider _output/bin/linux_amd64/provider
           cp bin/linux_arm64/provider _output/bin/linux_arm64/provider
 
-      - name: Build and Push Multi-arch Container Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: cluster/images/provider-dynatrace-native/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Build and Push Crossplane Package (.xpkg)
+      - name: Build Local Runtime Images (Linux amd64 & arm64)
         run: |
-          # Determine the primary tag to use for the Crossplane package
-          PRIMARY_TAG="${{ steps.meta.outputs.version }}"
-          if [ -z "${PRIMARY_TAG}" ]; then
-            if [ "${{ github.ref_name }}" == "main" ]; then
-              PRIMARY_TAG="latest"
-            else
-              PRIMARY_TAG="${{ github.ref_name }}"
-            fi
-          fi
-          
-          PACKAGE_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${PRIMARY_TAG}"
-          echo "Building Crossplane package for image: ${PACKAGE_IMAGE}"
-          
+          docker build --platform linux/amd64 -t runtime-amd64 -f cluster/images/provider-dynatrace-native/Dockerfile --build-arg TARGETOS=linux --build-arg TARGETARCH=amd64 .
+          docker build --platform linux/arm64 -t runtime-arm64 -f cluster/images/provider-dynatrace-native/Dockerfile --build-arg TARGETOS=linux --build-arg TARGETARCH=arm64 .
+
+      - name: Build Crossplane Packages (.xpkg)
+        run: |
           mkdir -p _output/package
           crossplane xpkg build \
             --package-root=package \
-            --embed-runtime-image="${PACKAGE_IMAGE}" \
-            --output="_output/package/provider-dynatrace-native-${PRIMARY_TAG}.xpkg"
+            --embed-runtime-image=runtime-amd64 \
+            --package-file=_output/package/provider-dynatrace-native-amd64.xpkg
 
-          echo "Pushing Crossplane package to GHCR..."
-          crossplane xpkg push \
-            --package="_output/package/provider-dynatrace-native-${PRIMARY_TAG}.xpkg" \
-            "${PACKAGE_IMAGE}"
+          crossplane xpkg build \
+            --package-root=package \
+            --embed-runtime-image=runtime-arm64 \
+            --package-file=_output/package/provider-dynatrace-native-arm64.xpkg
+
+      - name: Push Crossplane Packages to GHCR
+        run: |
+          for TAG in ${{ steps.meta.outputs.tags }}; do
+            echo "Pushing Crossplane package to ${TAG}..."
+            crossplane xpkg push \
+              --package-files=_output/package/provider-dynatrace-native-amd64.xpkg,_output/package/provider-dynatrace-native-arm64.xpkg \
+              "${TAG}"
+          done

@@ -1,7 +1,7 @@
 # ====================================================================================
 # Setup Project
-PROJECT_NAME := provider-dynatrace-native
-PROJECT_REPO := github.com/vikreinok/provider-dynatrace-native-iam
+PROJECT_NAME ?= provider-dynatrace-native-iam
+PROJECT_REPO := github.com/vikreinok/$(PROJECT_NAME)
 
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
@@ -31,7 +31,8 @@ GOLANGCILINT_VERSION = 2.12.2
 # ====================================================================================
 # Setup Images
 
-IMAGES = provider-dynatrace-native
+REGISTRY_ORGS ?= ghcr.io/vikreinok
+IMAGES = $(PROJECT_NAME)
 -include build/makelib/imagelight.mk
 
 # ====================================================================================
@@ -41,12 +42,12 @@ XPKG_REG_ORGS ?= ghcr.io/vikreinok
 # NOTE(hasheddan): skip promoting on xpkg.upbound.io as channel tags are
 # inferred.
 XPKG_REG_ORGS_NO_PROMOTE ?= ghcr.io/vikreinok
-XPKGS = provider-dynatrace-native
+XPKGS = $(PROJECT_NAME)
 -include build/makelib/xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
-xpkg.build.provider-dynatrace-native: do.build.images
+xpkg.build.$(PROJECT_NAME): do.build.images
 
 fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
