@@ -28,8 +28,21 @@ const (
 	errDeleteCostCenter = "cannot delete CostCenter in Dynatrace API"
 )
 
-// SetupGated adds a controller that reconciles CostCenter managed resources.
+// SetupGated adds a controller that reconciles CostCenter managed resources with SafeStart support.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	if o.Gate == nil {
+		return Setup(mgr, o)
+	}
+	o.Gate.Register(func() {
+		if err := Setup(mgr, o); err != nil {
+			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", iamv1alpha1.CostCenterGroupVersionKind.String())
+		}
+	}, iamv1alpha1.CostCenterGroupVersionKind)
+	return nil
+}
+
+// Setup adds a controller that reconciles CostCenter managed resources.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(iamv1alpha1.CostCenterGroupKind)
 
 	r := managed.NewReconciler(mgr,

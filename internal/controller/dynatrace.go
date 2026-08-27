@@ -34,7 +34,7 @@ import (
 // the supplied manager.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
-		config.Setup,
+		config.SetupGated,
 		group.SetupGated,
 		policy.SetupGated,
 		policyboundary.SetupGated,

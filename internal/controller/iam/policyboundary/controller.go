@@ -29,8 +29,21 @@ const (
 	errDeleteBoundary = "cannot delete PolicyBoundary in Dynatrace API"
 )
 
-// SetupGated adds a controller that reconciles PolicyBoundary managed resources.
+// SetupGated adds a controller that reconciles PolicyBoundary managed resources with SafeStart support.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	if o.Gate == nil {
+		return Setup(mgr, o)
+	}
+	o.Gate.Register(func() {
+		if err := Setup(mgr, o); err != nil {
+			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", iamv1alpha1.PolicyBoundaryGroupVersionKind.String())
+		}
+	}, iamv1alpha1.PolicyBoundaryGroupVersionKind)
+	return nil
+}
+
+// Setup adds a controller that reconciles PolicyBoundary managed resources.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(iamv1alpha1.PolicyBoundaryGroupKind)
 
 	r := managed.NewReconciler(mgr,

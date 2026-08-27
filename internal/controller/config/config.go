@@ -27,6 +27,19 @@ import (
 	"github.com/vikreinok/provider-dynatrace-native-iam/apis/v1alpha1"
 )
 
+// SetupGated adds a controller that reconciles ClusterProviderConfigs with SafeStart support.
+func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	if o.Gate == nil {
+		return Setup(mgr, o)
+	}
+	o.Gate.Register(func() {
+		if err := Setup(mgr, o); err != nil {
+			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", v1alpha1.ClusterProviderConfigGroupVersionKind.String())
+		}
+	}, v1alpha1.ClusterProviderConfigGroupVersionKind)
+	return nil
+}
+
 // Setup adds a controller that reconciles ClusterProviderConfigs by accounting for
 // their current usage.
 func Setup(mgr ctrl.Manager, o controller.Options) error {

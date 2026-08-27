@@ -28,8 +28,21 @@ const (
 	errDeleteUser = "cannot delete User in Dynatrace API"
 )
 
-// SetupGated adds a controller that reconciles User managed resources.
+// SetupGated adds a controller that reconciles User managed resources with SafeStart support.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	if o.Gate == nil {
+		return Setup(mgr, o)
+	}
+	o.Gate.Register(func() {
+		if err := Setup(mgr, o); err != nil {
+			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", iamv1alpha1.UserGroupVersionKind.String())
+		}
+	}, iamv1alpha1.UserGroupVersionKind)
+	return nil
+}
+
+// Setup adds a controller that reconciles User managed resources.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(iamv1alpha1.UserGroupKind)
 
 	r := managed.NewReconciler(mgr,
