@@ -3,28 +3,22 @@ package group
 import (
 	"context"
 	"slices"
-	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	iamv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/iam/v1alpha1"
 	dtclient "github.com/vikreinok/provider-dynatrace-native-iam/internal/clients/dynatrace"
+	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/helper"
 )
 
 const (
 	errNotGroup    = "managed resource is not a Group custom resource"
-	errTrackUsage  = "cannot track ProviderConfig usage"
-	errGetPC       = "cannot get ProviderConfig"
-	errNewClient   = "cannot create new Dynatrace client"
 	errGetGroup    = "cannot get Group from Dynatrace API"
 	errCreateGroup = "cannot create Group in Dynatrace API"
 	errUpdateGroup = "cannot update Group in Dynatrace API"
@@ -33,54 +27,36 @@ const (
 
 // SetupGated adds a controller that reconciles Group managed resources with SafeStart support.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
-	if o.Gate == nil {
-		return Setup(mgr, o)
-	}
-	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
-			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", iamv1alpha1.GroupGroupVersionKind.String())
-		}
-	}, iamv1alpha1.GroupGroupVersionKind)
-	return nil
+	return helper.SetupGatedManagedController(
+		mgr,
+		o,
+		iamv1alpha1.GroupGroupVersionKind,
+		iamv1alpha1.GroupGroupKind,
+		&iamv1alpha1.Group{},
+		&helper.DynatraceConnector{
+			Kube: mgr.GetClient(),
+			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
+				return &external{client: client}
+			},
+		},
+	)
 }
 
 // Setup adds a controller that reconciles Group managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(iamv1alpha1.GroupGroupKind)
-
-	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(iamv1alpha1.GroupGroupVersionKind),
-		managed.WithExternalConnector(&connector{
-			kube: mgr.GetClient(),
-		}),
-		managed.WithCreationGracePeriod(1*time.Nanosecond),
-		managed.WithLogger(o.Logger.WithValues("controller", name)),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))), //nolint:staticcheck // Deprecated in controller-runtime but required by crossplane-runtime v2 APIRecorder
+	return helper.SetupManagedController(
+		mgr,
+		o,
+		iamv1alpha1.GroupGroupVersionKind,
+		iamv1alpha1.GroupGroupKind,
+		&iamv1alpha1.Group{},
+		&helper.DynatraceConnector{
+			Kube: mgr.GetClient(),
+			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
+				return &external{client: client}
+			},
+		},
 	)
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		WithOptions(o.ForControllerRuntime()).
-		For(&iamv1alpha1.Group{}).
-		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
-}
-
-type connector struct {
-	kube client.Client
-}
-
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*iamv1alpha1.Group)
-	if !ok {
-		return nil, errors.New(errNotGroup)
-	}
-
-	dt, err := dtclient.GetClientFromProviderConfig(ctx, c.kube, cr.GetProviderConfigReference())
-	if err != nil {
-		return nil, errors.Wrap(err, errNewClient)
-	}
-
-	return &external{client: dt}, nil
 }
 
 type external struct {

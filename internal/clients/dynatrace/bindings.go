@@ -40,11 +40,7 @@ func (c *dynatraceClient) SetPolicyBinding(ctx context.Context, levelType, level
 	}
 	lt, lid := c.resolvePolicyLevel(levelType, levelID)
 	path := fmt.Sprintf("/iam/v1/repo/%s/%s/bindings/%s/%s", lt, lid, policyUUID, groupUUID)
-	err := c.doRequest(ctx, http.MethodPut, path, binding, nil)
-	if err != nil && IsNotFound(err) {
-		return nil
-	}
-	return err
+	return c.doRequest(ctx, http.MethodPut, path, binding, nil)
 }
 
 func (c *dynatraceClient) DeletePolicyBinding(ctx context.Context, levelType, levelID, policyUUID, groupUUID string) error {
