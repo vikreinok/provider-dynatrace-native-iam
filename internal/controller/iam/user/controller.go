@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
@@ -12,6 +13,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -77,11 +79,60 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errNewClient)
 	}
 
-	return &external{client: dt}, nil
+	return &external{kube: c.kube, client: dt}, nil
 }
 
 type external struct {
+	kube   client.Client
 	client dtclient.Client
+}
+
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (e *external) resolveGroups(ctx context.Context, groupIDs []string) ([]string, error) {
+	if len(groupIDs) == 0 {
+		return nil, nil
+	}
+	resolved := make([]string, len(groupIDs))
+	for i, g := range groupIDs {
+		if isUUID(g) {
+			resolved[i] = g
+			continue
+		}
+		if e.kube != nil {
+			grp := &iamv1alpha1.Group{}
+			if err := e.kube.Get(ctx, types.NamespacedName{Name: g}, grp); err != nil {
+				return nil, errors.Wrapf(err, "cannot get referenced Group %q", g)
+			}
+			uuid := grp.Status.AtProvider.ID
+			if uuid == "" {
+				uuid = meta.GetExternalName(grp)
+			}
+			if uuid == "" || uuid == grp.GetName() || !isUUID(uuid) {
+				return nil, fmt.Errorf("referenced Group %q is not ready yet (waiting for status.atProvider.id)", g)
+			}
+			resolved[i] = uuid
+		} else {
+			return nil, fmt.Errorf("group ID %q is not a valid UUID", g)
+		}
+	}
+	return resolved, nil
 }
 
 func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
@@ -139,7 +190,12 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr.SetConditions(xpv2.Creating())
 
 	email := cr.Spec.ForProvider.Email
-	if err := e.client.CreateUser(ctx, email, cr.Spec.ForProvider.Groups); err != nil {
+	groups, err := e.resolveGroups(ctx, cr.Spec.ForProvider.Groups)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
+	if err := e.client.CreateUser(ctx, email, groups); err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, errCreateUser)
 	}
 

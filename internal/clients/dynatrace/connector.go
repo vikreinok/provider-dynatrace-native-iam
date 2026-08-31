@@ -43,6 +43,35 @@ func GetClientFromProviderConfig(ctx context.Context, kube client.Client, pcr *x
 	return nil, errors.Wrapf(err, "cannot find ClusterProviderConfig %s", pcName)
 }
 
+// ParseCredentialsJSON parses raw JSON credential data into Credentials.
+func ParseCredentialsJSON(data []byte) (Credentials, error) {
+	var raw RawCredentials
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return Credentials{}, errors.Wrap(err, "failed to unmarshal JSON credentials")
+	}
+
+	resolvedAccountID := raw.AccountID
+	if resolvedAccountID == "" {
+		resolvedAccountID = raw.DTAccountID
+	}
+	resolvedClientID := raw.ClientID
+	if resolvedClientID == "" {
+		resolvedClientID = raw.DTClientID
+	}
+	resolvedClientSecret := raw.ClientSecret
+	if resolvedClientSecret == "" {
+		resolvedClientSecret = raw.DTClientSecret
+	}
+
+	return Credentials{
+		AccountID:    resolvedAccountID,
+		ClientID:     resolvedClientID,
+		ClientSecret: resolvedClientSecret,
+		EnvURL:       raw.EnvURL,
+		APIToken:     raw.APIToken,
+	}, nil
+}
+
 func clientFromCredentials(ctx context.Context, kube client.Client, creds v1alpha1.ProviderCredentials) (Client, error) {
 	if creds.Source != xpv2.CredentialsSourceSecret {
 		return nil, fmt.Errorf("unsupported credentials source: %s; only Secret is currently supported", creds.Source)
@@ -71,30 +100,9 @@ func clientFromCredentials(ctx context.Context, kube client.Client, creds v1alph
 		return nil, fmt.Errorf("key %q not found in credentials secret %s/%s", key, creds.SecretRef.Namespace, creds.SecretRef.Name)
 	}
 
-	var raw RawCredentials
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal JSON credentials from secret")
-	}
-
-	resolvedAccountID := raw.AccountID
-	if resolvedAccountID == "" {
-		resolvedAccountID = raw.DTAccountID
-	}
-	resolvedClientID := raw.ClientID
-	if resolvedClientID == "" {
-		resolvedClientID = raw.DTClientID
-	}
-	resolvedClientSecret := raw.ClientSecret
-	if resolvedClientSecret == "" {
-		resolvedClientSecret = raw.DTClientSecret
-	}
-
-	parsedCreds := Credentials{
-		AccountID:    resolvedAccountID,
-		ClientID:     resolvedClientID,
-		ClientSecret: resolvedClientSecret,
-		EnvURL:       raw.EnvURL,
-		APIToken:     raw.APIToken,
+	parsedCreds, err := ParseCredentialsJSON(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse credentials JSON from secret")
 	}
 
 	return NewClient(parsedCreds)

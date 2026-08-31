@@ -14,6 +14,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -28,7 +29,7 @@ const (
 	errGetBindings    = "cannot get PolicyBindings from Dynatrace API"
 	errSetBindings    = "cannot set PolicyBindings in Dynatrace API"
 	errDeleteBindings = "cannot delete PolicyBindings in Dynatrace API"
-	errMissingGroup   = "missing group UUID in spec.forProvider.group"
+	errMissingGroup   = "missing group UUID in spec.forProvider.group or spec.forProvider.groupRef"
 )
 
 // SetupGated adds a controller that reconciles PolicyBindingsV2 managed resources with SafeStart support.
@@ -80,11 +81,30 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errNewClient)
 	}
 
-	return &external{client: dt}, nil
+	return &external{kube: c.kube, client: dt}, nil
 }
 
 type external struct {
+	kube   client.Client
 	client dtclient.Client
+}
+
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func resolveLevel(p iamv1alpha1.PolicyBindingsV2Parameters) (string, string) {
@@ -97,11 +117,105 @@ func resolveLevel(p iamv1alpha1.PolicyBindingsV2Parameters) (string, string) {
 	return "account", ""
 }
 
-func resolveGroup(p iamv1alpha1.PolicyBindingsV2Parameters) (string, error) {
+func (e *external) resolveGroup(ctx context.Context, cr *iamv1alpha1.PolicyBindingsV2) (string, error) {
+	p := cr.Spec.ForProvider
 	if p.Group != nil && *p.Group != "" {
-		return *p.Group, nil
+		val := *p.Group
+		if isUUID(val) {
+			return val, nil
+		}
+		// If not a UUID, check if it's the name of a Group managed resource
+		if e.kube != nil {
+			grp := &iamv1alpha1.Group{}
+			if err := e.kube.Get(ctx, types.NamespacedName{Name: val}, grp); err == nil {
+				uuid := grp.Status.AtProvider.ID
+				if uuid == "" {
+					uuid = meta.GetExternalName(grp)
+				}
+				if uuid != "" && uuid != grp.GetName() && isUUID(uuid) {
+					return uuid, nil
+				}
+				return "", fmt.Errorf("referenced Group %q is not ready yet (waiting for status.atProvider.id)", val)
+			}
+		}
+		return "", fmt.Errorf("spec.forProvider.group %q is not a valid UUID", val)
 	}
+
+	if p.GroupRef != nil && p.GroupRef.Name != "" {
+		refName := p.GroupRef.Name
+		if e.kube == nil {
+			return "", fmt.Errorf("cannot resolve groupRef %q without kube client", refName)
+		}
+		grp := &iamv1alpha1.Group{}
+		if err := e.kube.Get(ctx, types.NamespacedName{Name: refName}, grp); err != nil {
+			return "", errors.Wrapf(err, "cannot get referenced Group %q", refName)
+		}
+		uuid := grp.Status.AtProvider.ID
+		if uuid == "" {
+			uuid = meta.GetExternalName(grp)
+		}
+		if uuid == "" || uuid == grp.GetName() || !isUUID(uuid) {
+			return "", fmt.Errorf("referenced Group %q is not ready yet (waiting for status.atProvider.id)", refName)
+		}
+		return uuid, nil
+	}
+
 	return "", errors.New(errMissingGroup)
+}
+
+func (e *external) resolvePolicies(ctx context.Context, items []iamv1alpha1.PolicyBindingItem) ([]iamv1alpha1.PolicyBindingItem, error) {
+	resolved := make([]iamv1alpha1.PolicyBindingItem, len(items))
+	for i, item := range items {
+		resolvedItem := item
+		if !isUUID(item.ID) {
+			if e.kube != nil {
+				pol := &iamv1alpha1.Policy{}
+				if err := e.kube.Get(ctx, types.NamespacedName{Name: item.ID}, pol); err != nil {
+					return nil, errors.Wrapf(err, "cannot get referenced Policy %q", item.ID)
+				}
+				uuid := pol.Status.AtProvider.ID
+				if uuid == "" {
+					uuid = meta.GetExternalName(pol)
+				}
+				if uuid == "" || uuid == pol.GetName() || !isUUID(uuid) {
+					return nil, fmt.Errorf("referenced Policy %q is not ready yet (waiting for status.atProvider.id)", item.ID)
+				}
+				resolvedItem.ID = uuid
+			} else {
+				return nil, fmt.Errorf("policy ID %q is not a valid UUID", item.ID)
+			}
+		}
+
+		if len(item.Boundaries) > 0 {
+			resolvedBoundaries := make([]string, len(item.Boundaries))
+			for j, bnd := range item.Boundaries {
+				if !isUUID(bnd) {
+					if e.kube != nil {
+						bndObj := &iamv1alpha1.PolicyBoundary{}
+						if err := e.kube.Get(ctx, types.NamespacedName{Name: bnd}, bndObj); err != nil {
+							return nil, errors.Wrapf(err, "cannot get referenced PolicyBoundary %q", bnd)
+						}
+						uuid := bndObj.Status.AtProvider.ID
+						if uuid == "" {
+							uuid = meta.GetExternalName(bndObj)
+						}
+						if uuid == "" || uuid == bndObj.GetName() || !isUUID(uuid) {
+							return nil, fmt.Errorf("referenced PolicyBoundary %q is not ready yet (waiting for status.atProvider.id)", bnd)
+						}
+						resolvedBoundaries[j] = uuid
+					} else {
+						return nil, fmt.Errorf("policy boundary ID %q is not a valid UUID", bnd)
+					}
+				} else {
+					resolvedBoundaries[j] = bnd
+				}
+			}
+			resolvedItem.Boundaries = resolvedBoundaries
+		}
+
+		resolved[i] = resolvedItem
+	}
+	return resolved, nil
 }
 
 func mapBoundPolicies(bindings *dtclient.PolicyBindingsDto) map[string]dtclient.BindingItem {
@@ -159,7 +273,12 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotBindings)
 	}
 
-	groupUUID, err := resolveGroup(cr.Spec.ForProvider)
+	groupUUID, err := e.resolveGroup(ctx, cr)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
+
+	desiredPolicies, err := e.resolvePolicies(ctx, cr.Spec.ForProvider.Policy)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -177,7 +296,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.Wrap(err, errGetBindings)
 	}
 
-	allFound, upToDate := checkBindingsUpToDate(cr.Spec.ForProvider.Policy, bindings)
+	allFound, upToDate := checkBindingsUpToDate(desiredPolicies, bindings)
 	if !allFound {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -210,14 +329,19 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	cr.SetConditions(xpv2.Creating())
 
-	groupUUID, err := resolveGroup(cr.Spec.ForProvider)
+	groupUUID, err := e.resolveGroup(ctx, cr)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
+	desiredPolicies, err := e.resolvePolicies(ctx, cr.Spec.ForProvider.Policy)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
 
 	lt, lid := resolveLevel(cr.Spec.ForProvider)
 
-	for _, pol := range cr.Spec.ForProvider.Policy {
+	for _, pol := range desiredPolicies {
 		err := e.client.SetPolicyBinding(ctx, lt, lid, pol.ID, groupUUID, dtclient.AppendLevelPolicyBindingForGroupDto{
 			Parameters: pol.Parameters,
 			Metadata:   pol.Metadata,
@@ -242,14 +366,19 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNotBindings)
 	}
 
-	groupUUID, err := resolveGroup(cr.Spec.ForProvider)
+	groupUUID, err := e.resolveGroup(ctx, cr)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+
+	desiredPolicies, err := e.resolvePolicies(ctx, cr.Spec.ForProvider.Policy)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
 
 	lt, lid := resolveLevel(cr.Spec.ForProvider)
 
-	for _, pol := range cr.Spec.ForProvider.Policy {
+	for _, pol := range desiredPolicies {
 		err := e.client.SetPolicyBinding(ctx, lt, lid, pol.ID, groupUUID, dtclient.AppendLevelPolicyBindingForGroupDto{
 			Parameters: pol.Parameters,
 			Metadata:   pol.Metadata,
@@ -271,14 +400,19 @@ func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	cr.SetConditions(xpv2.Deleting())
 
-	groupUUID, err := resolveGroup(cr.Spec.ForProvider)
+	groupUUID, err := e.resolveGroup(ctx, cr)
 	if err != nil {
 		return managed.ExternalDelete{}, errors.Wrap(err, "cannot resolve group for policy binding deletion")
 	}
 
+	desiredPolicies, err := e.resolvePolicies(ctx, cr.Spec.ForProvider.Policy)
+	if err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot resolve policies for policy binding deletion")
+	}
+
 	lt, lid := resolveLevel(cr.Spec.ForProvider)
 
-	for _, pol := range cr.Spec.ForProvider.Policy {
+	for _, pol := range desiredPolicies {
 		_ = e.client.DeletePolicyBinding(ctx, lt, lid, pol.ID, groupUUID)
 	}
 

@@ -165,3 +165,76 @@ func TestLive_CostCenterLifecycle(t *testing.T) {
 	}
 	t.Log("CostCenter lifecycle verified successfully on live Dynatrace API")
 }
+
+func TestLive_PolicyAndBindingsLifecycle(t *testing.T) {
+	client := getLiveClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// 1. Create temporary group
+	groupName := "E2E Test Bindings Group " + time.Now().Format("150405")
+	grp, err := client.CreateGroup(ctx, dtclient.GroupDto{
+		Name:        groupName,
+		Description: "For bindings E2E test",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	defer func() {
+		_ = client.DeleteGroup(context.Background(), grp.UUID)
+	}()
+
+	// 2. Create policy
+	polName := "E2E Test Policy " + time.Now().Format("150405")
+	createdPol, err := client.CreatePolicy(ctx, "account", "", dtclient.PolicyDto{
+		Name:           polName,
+		Description:    "E2E test policy for bindings",
+		StatementQuery: "ALLOW settings:objects:read;",
+	})
+	if err != nil {
+		t.Fatalf("CreatePolicy failed: %v", err)
+	}
+	defer func() {
+		_ = client.DeletePolicy(context.Background(), "account", "", createdPol.UUID)
+	}()
+
+	// 3. Set policy binding
+	err = client.SetPolicyBinding(ctx, "account", "", createdPol.UUID, grp.UUID, dtclient.AppendLevelPolicyBindingForGroupDto{
+		Parameters: map[string]string{"env": "test"},
+	})
+	if err != nil {
+		t.Fatalf("SetPolicyBinding failed: %v", err)
+	}
+
+	// 4. Get policy bindings for group
+	bindings, err := client.GetPolicyBindingsForGroup(ctx, "account", "", grp.UUID)
+	if err != nil {
+		t.Fatalf("GetPolicyBindingsForGroup failed: %v", err)
+	}
+	found := false
+	for _, b := range bindings.PolicyBindings {
+		if b.ID == createdPol.UUID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		for _, u := range bindings.PolicyUUIDs {
+			if u == createdPol.UUID {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected policy %s in group bindings, got: %+v", createdPol.UUID, bindings)
+	}
+
+	// 5. Delete policy binding
+	err = client.DeletePolicyBinding(ctx, "account", "", createdPol.UUID, grp.UUID)
+	if err != nil {
+		t.Fatalf("DeletePolicyBinding failed: %v", err)
+	}
+	t.Log("Policy and PolicyBindings lifecycle verified successfully on live Dynatrace API")
+}
+
