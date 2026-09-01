@@ -229,15 +229,15 @@ type ZoneRuleDto struct {
 // AttributeRuleDto represents entity filtering rules for Monitored Entities.
 type AttributeRuleDto struct {
 	EntityType                                 string                  `json:"entityType"`
-	HostToPgpropagation                        *bool                   `json:"hostToPgpropagation,omitempty"`
+	HostToPGPropagation                        *bool                   `json:"hostToPGPropagation,omitempty"`
 	PgToHostPropagation                        *bool                   `json:"pgToHostPropagation,omitempty"`
 	PgToServicePropagation                     *bool                   `json:"pgToServicePropagation,omitempty"`
 	ServiceToHostPropagation                   *bool                   `json:"serviceToHostPropagation,omitempty"`
-	ServiceToPgpropagation                     *bool                   `json:"serviceToPgpropagation,omitempty"`
-	AzureToPgpropagation                       *bool                   `json:"azureToPgpropagation,omitempty"`
+	ServiceToPGPropagation                     *bool                   `json:"serviceToPGPropagation,omitempty"`
+	AzureToPGPropagation                       *bool                   `json:"azureToPGPropagation,omitempty"`
 	AzureToServicePropagation                  *bool                   `json:"azureToServicePropagation,omitempty"`
 	CustomDeviceGroupToCustomDevicePropagation *bool                   `json:"customDeviceGroupToCustomDevicePropagation,omitempty"`
-	AttributeConditions                        []AttributeConditionDto `json:"attributeConditions,omitempty"`
+	Conditions                                 []AttributeConditionDto `json:"conditions"`
 }
 
 // AttributeConditionDto represents a single attribute condition.
@@ -257,7 +257,12 @@ type AttributeConditionDto struct {
 // DimensionRuleDto represents dimensional data filtering rules.
 type DimensionRuleDto struct {
 	AppliesTo           string                  `json:"appliesTo"`
-	DimensionConditions []DimensionConditionDto `json:"dimensionConditions,omitempty"`
+	DimensionConditions *DimensionConditionsDto `json:"dimensionConditions,omitempty"`
+}
+
+// DimensionConditionsDto holds the conditions array for a dimensional rule.
+type DimensionConditionsDto struct {
+	Conditions []DimensionConditionDto `json:"conditions"`
 }
 
 // DimensionConditionDto represents a single dimension condition.
@@ -267,6 +272,7 @@ type DimensionConditionDto struct {
 	RuleMatcher   string  `json:"ruleMatcher"`
 	Value         string  `json:"value"`
 }
+
 
 // APIError represents an error response from Dynatrace API.
 type APIError struct {

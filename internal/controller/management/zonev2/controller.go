@@ -217,14 +217,15 @@ func toManagementZoneV2Value(p managementv1alpha1.ZoneV2Parameters) dtclient.Man
 			if len(r.AttributeRule) > 0 {
 				ar := r.AttributeRule[0]
 				arDto := &dtclient.AttributeRuleDto{
-					HostToPgpropagation:                        ar.HostToPgpropagation,
+					HostToPGPropagation:                        ar.HostToPgpropagation,
 					PgToHostPropagation:                        ar.PgToHostPropagation,
 					PgToServicePropagation:                     ar.PgToServicePropagation,
 					ServiceToHostPropagation:                   ar.ServiceToHostPropagation,
-					ServiceToPgpropagation:                     ar.ServiceToPgpropagation,
-					AzureToPgpropagation:                       ar.AzureToPgpropagation,
+					ServiceToPGPropagation:                     ar.ServiceToPgpropagation,
+					AzureToPGPropagation:                       ar.AzureToPgpropagation,
 					AzureToServicePropagation:                  ar.AzureToServicePropagation,
 					CustomDeviceGroupToCustomDevicePropagation: ar.CustomDeviceGroupToCustomDevicePropagation,
+					Conditions:                                 make([]dtclient.AttributeConditionDto, 0),
 				}
 				if ar.EntityType != nil {
 					arDto.EntityType = *ar.EntityType
@@ -247,7 +248,7 @@ func toManagementZoneV2Value(p managementv1alpha1.ZoneV2Parameters) dtclient.Man
 						if c.Operator != nil {
 							cDto.Operator = *c.Operator
 						}
-						arDto.AttributeConditions = append(arDto.AttributeConditions, cDto)
+						arDto.Conditions = append(arDto.Conditions, cDto)
 					}
 				}
 				dto.AttributeRule = arDto
@@ -259,6 +260,7 @@ func toManagementZoneV2Value(p managementv1alpha1.ZoneV2Parameters) dtclient.Man
 				if dr.AppliesTo != nil {
 					drDto.AppliesTo = *dr.AppliesTo
 				}
+				var dimConds []dtclient.DimensionConditionDto
 				for _, dc := range dr.DimensionConditions {
 					for _, c := range dc.Condition {
 						cDto := dtclient.DimensionConditionDto{
@@ -273,7 +275,12 @@ func toManagementZoneV2Value(p managementv1alpha1.ZoneV2Parameters) dtclient.Man
 						if c.Value != nil {
 							cDto.Value = *c.Value
 						}
-						drDto.DimensionConditions = append(drDto.DimensionConditions, cDto)
+						dimConds = append(dimConds, cDto)
+					}
+				}
+				if len(dimConds) > 0 {
+					drDto.DimensionConditions = &dtclient.DimensionConditionsDto{
+						Conditions: dimConds,
 					}
 				}
 				dto.DimensionRule = drDto
@@ -311,17 +318,17 @@ func toZoneV2Observation(obj *dtclient.SettingsObjectItemDto) managementv1alpha1
 			ar := r.AttributeRule
 			arObs := managementv1alpha1.AttributeRuleObservation{
 				EntityType:                                 &ar.EntityType,
-				HostToPgpropagation:                        ar.HostToPgpropagation,
+				HostToPgpropagation:                        ar.HostToPGPropagation,
 				PgToHostPropagation:                        ar.PgToHostPropagation,
 				PgToServicePropagation:                     ar.PgToServicePropagation,
 				ServiceToHostPropagation:                   ar.ServiceToHostPropagation,
-				ServiceToPgpropagation:                     ar.ServiceToPgpropagation,
-				AzureToPgpropagation:                       ar.AzureToPgpropagation,
+				ServiceToPgpropagation:                     ar.ServiceToPGPropagation,
+				AzureToPgpropagation:                       ar.AzureToPGPropagation,
 				AzureToServicePropagation:                  ar.AzureToServicePropagation,
 				CustomDeviceGroupToCustomDevicePropagation: ar.CustomDeviceGroupToCustomDevicePropagation,
 			}
-			condObsList := make([]managementv1alpha1.AttributeConditionsConditionObservation, 0, len(ar.AttributeConditions))
-			for _, c := range ar.AttributeConditions {
+			condObsList := make([]managementv1alpha1.AttributeConditionsConditionObservation, 0, len(ar.Conditions))
+			for _, c := range ar.Conditions {
 				condObsList = append(condObsList, managementv1alpha1.AttributeConditionsConditionObservation{
 					Key:              &c.Key,
 					Operator:         &c.Operator,
@@ -348,18 +355,20 @@ func toZoneV2Observation(obj *dtclient.SettingsObjectItemDto) managementv1alpha1
 			drObs := managementv1alpha1.DimensionRuleObservation{
 				AppliesTo: &dr.AppliesTo,
 			}
-			condObsList := make([]managementv1alpha1.DimensionConditionsConditionObservation, 0, len(dr.DimensionConditions))
-			for _, c := range dr.DimensionConditions {
-				condObsList = append(condObsList, managementv1alpha1.DimensionConditionsConditionObservation{
-					ConditionType: &c.ConditionType,
-					Key:           c.Key,
-					RuleMatcher:   &c.RuleMatcher,
-					Value:         &c.Value,
-				})
-			}
-			if len(condObsList) > 0 {
-				drObs.DimensionConditions = []managementv1alpha1.DimensionConditionsObservation{
-					{Condition: condObsList},
+			if dr.DimensionConditions != nil {
+				condObsList := make([]managementv1alpha1.DimensionConditionsConditionObservation, 0, len(dr.DimensionConditions.Conditions))
+				for _, c := range dr.DimensionConditions.Conditions {
+					condObsList = append(condObsList, managementv1alpha1.DimensionConditionsConditionObservation{
+						ConditionType: &c.ConditionType,
+						Key:           c.Key,
+						RuleMatcher:   &c.RuleMatcher,
+						Value:         &c.Value,
+					})
+				}
+				if len(condObsList) > 0 {
+					drObs.DimensionConditions = []managementv1alpha1.DimensionConditionsObservation{
+						{Condition: condObsList},
+					}
 				}
 			}
 			rObs.DimensionRule = []managementv1alpha1.DimensionRuleObservation{drObs}
@@ -367,6 +376,7 @@ func toZoneV2Observation(obj *dtclient.SettingsObjectItemDto) managementv1alpha1
 
 		rulesList = append(rulesList, rObs)
 	}
+
 
 	if len(rulesList) > 0 {
 		obs.Rules = []managementv1alpha1.ZoneV2RulesObservation{

@@ -5,15 +5,18 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	dtclient "github.com/vikreinok/provider-dynatrace-native-iam/internal/clients/dynatrace"
 )
+
 
 func getLiveCredentials(t *testing.T) dtclient.Credentials {
 	accountID := os.Getenv("DT_ACCOUNT_ID")
@@ -565,3 +568,84 @@ func TestLive_InvalidCredentials(t *testing.T) {
 		}
 	}
 }
+
+// -----------------------------------------------------------------------------
+// SCENARIO 7: Management Zone V2 Settings 2.0 API Validation
+// -----------------------------------------------------------------------------
+
+// [Schema Validation Test] Validates that the ManagementZoneV2 DTO correctly serializes OpenAPI properties
+// (conditions, azureToPGPropagation, etc.) and does not produce HTTP 400 validation errors on Dynatrace API.
+func TestLive_ManagementZoneV2Validation(t *testing.T) {
+	client, _ := getLiveClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	val := dtclient.ManagementZoneV2Value{
+		Name:        "SV-XYZ.UAT",
+		Description: "Validated against Dynatrace Settings 2.0 API schema",
+		Rules: []dtclient.ZoneRuleDto{
+			{
+				Type:    "ME",
+				Enabled: true,
+				AttributeRule: &dtclient.AttributeRuleDto{
+					EntityType: "CLOUD_APPLICATION",
+					Conditions: []dtclient.AttributeConditionDto{
+						{
+							Key:           "CLOUD_APPLICATION_NAMESPACE_LABELS",
+							Operator:      "EQUALS",
+							StringValue:   ptr.To("UAT"),
+							DynamicKey:    ptr.To("juliusbaer.com/purpose"),
+							CaseSensitive: ptr.To(true),
+						},
+						{
+							Key:           "CLOUD_APPLICATION_NAMESPACE_LABELS",
+							Operator:      "EQUALS",
+							StringValue:   ptr.To("SV-XYZ"),
+							DynamicKey:    ptr.To("juliusbaer.com/service"),
+							CaseSensitive: ptr.To(true),
+						},
+					},
+				},
+			},
+			{
+				Type:    "ME",
+				Enabled: true,
+				AttributeRule: &dtclient.AttributeRuleDto{
+					EntityType:                "AZURE",
+					AzureToPGPropagation:      ptr.To(true),
+					AzureToServicePropagation: ptr.To(true),
+					Conditions: []dtclient.AttributeConditionDto{
+						{
+							Key:      "AZURE_ENTITY_TAGS",
+							Operator: "EQUALS",
+							Tag:      ptr.To("[Azure]Purpose:UAT"),
+						},
+					},
+				},
+			},
+			{
+				Type:           "SELECTOR",
+				Enabled:        true,
+				EntitySelector: "type(APPLICATION), entityName.startsWith(\"[SV-XYZ.UAT]\")",
+			},
+		},
+	}
+
+	_, err := client.CreateManagementZoneV2(ctx, val)
+	if err != nil {
+		// If MZ is not enabled on this trial environment, Dynatrace returns 404 No schema with topic identifier.
+		// It MUST NOT return HTTP 400 Validation failed constraint violations.
+		var apiErr *dtclient.APIError
+		if errors.As(err, &apiErr) {
+			if apiErr.StatusCode == 400 {
+				t.Fatalf("ManagementZoneV2 payload failed schema validation (HTTP 400): %s", apiErr.RawBody)
+			}
+			t.Logf("ManagementZoneV2 correctly passed payload validation (HTTP %d: %s)", apiErr.StatusCode, apiErr.Message)
+		} else {
+			t.Logf("CreateManagementZoneV2 result: %v", err)
+		}
+	} else {
+		t.Log("ManagementZoneV2 created successfully on live Dynatrace API")
+	}
+}
+

@@ -2,6 +2,8 @@ package zonev2
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -12,6 +14,7 @@ import (
 	managementv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/management/v1alpha1"
 	dtclient "github.com/vikreinok/provider-dynatrace-native-iam/internal/clients/dynatrace"
 )
+
 
 type mockDynatraceClient struct {
 	dtclient.Client
@@ -115,7 +118,7 @@ func TestZoneV2Observe(t *testing.T) {
 										Enabled: true,
 										AttributeRule: &dtclient.AttributeRuleDto{
 											EntityType: "HOST",
-											AttributeConditions: []dtclient.AttributeConditionDto{
+											Conditions: []dtclient.AttributeConditionDto{
 												{
 													Key:         "HOST_NAME",
 													Operator:    "CONTAINS",
@@ -123,6 +126,7 @@ func TestZoneV2Observe(t *testing.T) {
 												},
 											},
 										},
+
 									},
 								},
 							},
@@ -288,3 +292,103 @@ func TestZoneV2Delete(t *testing.T) {
 		t.Errorf("expected DeleteManagementZoneV2 to be called")
 	}
 }
+
+func TestZoneV2PayloadSerialization(t *testing.T) {
+	mg := &managementv1alpha1.ZoneV2{
+		Spec: managementv1alpha1.ZoneV2Spec{
+			ForProvider: managementv1alpha1.ZoneV2Parameters{
+				Name: ptr.To("SV-XYZ.UAT"),
+				Rules: []managementv1alpha1.ZoneV2RulesParameters{
+					{
+						Rule: []managementv1alpha1.RuleParameters{
+							{
+								Type:    ptr.To("ME"),
+								Enabled: ptr.To(true),
+								AttributeRule: []managementv1alpha1.AttributeRuleParameters{
+									{
+										EntityType: ptr.To("CLOUD_APPLICATION"),
+										AttributeConditions: []managementv1alpha1.AttributeConditionsParameters{
+											{
+												Condition: []managementv1alpha1.AttributeConditionsConditionParameters{
+													{
+														Key:           ptr.To("CLOUD_APPLICATION_NAMESPACE_LABELS"),
+														Operator:      ptr.To("EQUALS"),
+														StringValue:   ptr.To("UAT"),
+														DynamicKey:    ptr.To("juliusbaer.com/purpose"),
+														CaseSensitive: ptr.To(true),
+													},
+													{
+														Key:           ptr.To("CLOUD_APPLICATION_NAMESPACE_LABELS"),
+														Operator:      ptr.To("EQUALS"),
+														StringValue:   ptr.To("SV-XYZ"),
+														DynamicKey:    ptr.To("juliusbaer.com/service"),
+														CaseSensitive: ptr.To(true),
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Type:    ptr.To("ME"),
+								Enabled: ptr.To(true),
+								AttributeRule: []managementv1alpha1.AttributeRuleParameters{
+									{
+										EntityType: ptr.To("AZURE"),
+										AzureToPgpropagation: ptr.To(true),
+										AzureToServicePropagation: ptr.To(true),
+										AttributeConditions: []managementv1alpha1.AttributeConditionsParameters{
+											{
+												Condition: []managementv1alpha1.AttributeConditionsConditionParameters{
+													{
+														Key:      ptr.To("AZURE_ENTITY_TAGS"),
+														Operator: ptr.To("EQUALS"),
+														Tag:      ptr.To("[Azure]Purpose:UAT"),
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Type:           ptr.To("SELECTOR"),
+								Enabled:        ptr.To(true),
+								EntitySelector: ptr.To("type(APPLICATION), entityName.startsWith(\"[SV-XYZ.UAT]\")"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	val := toManagementZoneV2Value(mg.Spec.ForProvider)
+	raw, err := json.Marshal(val)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	rawStr := string(raw)
+
+	// Ensure OpenAPI compliant property names
+	if strings.Contains(rawStr, "attributeConditions") {
+		t.Errorf("JSON payload contains obsolete 'attributeConditions', should be 'conditions': %s", rawStr)
+	}
+	if !strings.Contains(rawStr, `"conditions"`) {
+		t.Errorf("JSON payload missing 'conditions': %s", rawStr)
+	}
+	if strings.Contains(rawStr, "azureToPgpropagation") {
+		t.Errorf("JSON payload contains incorrect casing 'azureToPgpropagation', should be 'azureToPGPropagation': %s", rawStr)
+	}
+	if !strings.Contains(rawStr, `"azureToPGPropagation":true`) {
+		t.Errorf("JSON payload missing 'azureToPGPropagation': %s", rawStr)
+	}
+	if strings.Contains(rawStr, "hostToPgpropagation") {
+		t.Errorf("JSON payload contains incorrect casing 'hostToPgpropagation', should be 'hostToPGPropagation': %s", rawStr)
+	}
+	if strings.Contains(rawStr, "serviceToPgpropagation") {
+		t.Errorf("JSON payload contains incorrect casing 'serviceToPgpropagation', should be 'serviceToPGPropagation': %s", rawStr)
+	}
+}
+
