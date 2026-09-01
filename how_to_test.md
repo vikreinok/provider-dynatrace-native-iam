@@ -175,16 +175,17 @@ spec:
     name: default
 ```
 
-#### Example 3: Dynatrace IAM CostCenter
+#### Example 4: Dynatrace Management Zone V2
 ```yaml
-# examples/iam/costcenter.yaml
-apiVersion: iam.dynatrace.crossplane.io/v1alpha1
-kind: CostCenter
+# examples/management/zonev2.yaml
+apiVersion: management.dynatrace.crossplane.io/v1alpha1
+kind: ZoneV2
 metadata:
-  name: platform-eng-cc
+  name: platform-team-zone
 spec:
   forProvider:
-    costCenter: "Platform Engineering"
+    name: "Platform Team Zone"
+    description: "Management zone for platform team resources managed by Crossplane"
   providerConfigRef:
     name: default
 ```
@@ -194,6 +195,7 @@ Apply the manifests:
 kubectl apply -f examples/iam/group.yaml
 kubectl apply -f examples/iam/policy.yaml
 kubectl apply -f examples/iam/costcenter.yaml
+kubectl apply -f examples/management/zonev2.yaml
 ```
 
 ---
@@ -203,7 +205,7 @@ kubectl apply -f examples/iam/costcenter.yaml
 Check the status of your resources:
 
 ```bash
-kubectl get group,policy,costcenter,policybindingsv2,user
+kubectl get group,policy,costcenter,policybindingsv2,user,zonev2
 ```
 
 Example Output:
@@ -216,7 +218,11 @@ policy.iam.dynatrace.crossplane.io/settings-reader-policy   True    True     89e
 
 NAME                                                     READY   SYNCED   EXTERNAL-NAME          AGE
 costcenter.iam.dynatrace.crossplane.io/platform-eng-cc   True    True     Platform Engineering   15s
+
+NAME                                                            READY   SYNCED   EXTERNAL-NAME                                           AGE
+zonev2.management.dynatrace.crossplane.io/platform-team-zone   True    True     vu9U3hXa3q0AAAABABlidWlsdGluOm1hbmFnZW1lbnQtem9uZXMA...   15s
 ```
+
 
 Inspect details and observable status fields:
 ```bash

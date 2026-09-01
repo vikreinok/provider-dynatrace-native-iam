@@ -28,6 +28,7 @@ import (
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/policyboundary"
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/serviceuser"
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/user"
+	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/management/zonev2"
 )
 
 // SetupGated creates all Dynatrace controllers with safe-start support and adds them to
@@ -42,6 +43,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		costcenter.SetupGated,
 		user.SetupGated,
 		serviceuser.SetupGated,
+		zonev2.SetupGated,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err
@@ -49,3 +51,4 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 	}
 	return nil
 }
+

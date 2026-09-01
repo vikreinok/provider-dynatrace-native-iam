@@ -65,28 +65,41 @@ type Client interface {
 	GetServiceUser(ctx context.Context, userUUID string) (*ServiceUserDto, error)
 	CreateServiceUser(ctx context.Context, user ServiceUserDto) (*ServiceUserDto, error)
 	DeleteServiceUser(ctx context.Context, userUUID string) error
+
+	// Management Zone V2 operations
+	ListManagementZonesV2(ctx context.Context) (*SettingsObjectsListDto, error)
+	GetManagementZoneV2(ctx context.Context, objectID string) (*SettingsObjectItemDto, error)
+	CreateManagementZoneV2(ctx context.Context, value ManagementZoneV2Value) (*SettingsObjectResponseDto, error)
+	UpdateManagementZoneV2(ctx context.Context, objectID string, value ManagementZoneV2Value) error
+	DeleteManagementZoneV2(ctx context.Context, objectID string) error
 }
 
 type dynatraceClient struct {
 	accountID    string
 	baseURL      string
+	envURL       string
+	apiToken     string
 	tokenManager *TokenManager
 	httpClient   *http.Client
 }
 
-// NewClient creates a new Dynatrace IAM API Client.
+// NewClient creates a new Dynatrace API Client.
 func NewClient(creds Credentials, opts ...ClientOption) (Client, error) {
-	if creds.AccountID == "" {
-		return nil, errors.New("missing iam_account_id in Dynatrace credentials")
+	if creds.AccountID == "" && creds.EnvURL == "" {
+		return nil, errors.New("missing iam_account_id or dt_env_url in Dynatrace credentials")
 	}
-	if creds.ClientID == "" || creds.ClientSecret == "" {
-		return nil, errors.New("missing iam_client_id or iam_client_secret in Dynatrace credentials")
+
+	var tm *TokenManager
+	if creds.ClientID != "" && creds.ClientSecret != "" {
+		tm = NewTokenManager(creds.ClientID, creds.ClientSecret)
 	}
 
 	c := &dynatraceClient{
 		accountID:    creds.AccountID,
 		baseURL:      defaultBaseURL,
-		tokenManager: NewTokenManager(creds.ClientID, creds.ClientSecret),
+		envURL:       strings.TrimSuffix(creds.EnvURL, "/"),
+		apiToken:     creds.APIToken,
+		tokenManager: tm,
 		httpClient:   &http.Client{Timeout: 60 * time.Second},
 	}
 
@@ -96,6 +109,7 @@ func NewClient(creds Credentials, opts ...ClientOption) (Client, error) {
 
 	return c, nil
 }
+
 
 // ClientOption configures a Dynatrace client.
 type ClientOption func(*dynatraceClient)
@@ -220,6 +234,94 @@ func (c *dynatraceClient) executeWithRetry(ctx context.Context, method, fullURL 
 	return resp, nil
 }
 
+func (c *dynatraceClient) doEnvRequest(ctx context.Context, method, path string, reqBody any, out any) error {
+	if c.envURL == "" {
+		return errors.New("missing dt_env_url in Dynatrace credentials")
+	}
+	fullURL := fmt.Sprintf("%s%s", c.envURL, path)
+
+	var rawJSON []byte
+	if reqBody != nil {
+		var err error
+		rawJSON, err = json.Marshal(reqBody)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal request body")
+		}
+	}
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := c.buildEnvRequest(ctx, method, fullURL, rawJSON)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			time.Sleep(time.Duration(1<<attempt) * 100 * time.Millisecond)
+			continue
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if err := waitRetryAfter(ctx, resp.Header.Get("Retry-After")); err != nil {
+				return err
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return errors.Wrap(err, "failed to read response body")
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return &APIError{
+				StatusCode: resp.StatusCode,
+				Message:    fmt.Sprintf("Dynatrace API error (HTTP %d): %s", resp.StatusCode, string(respBody)),
+				RawBody:    string(respBody),
+			}
+		}
+
+		if out != nil && len(respBody) > 0 {
+			if err := json.Unmarshal(respBody, out); err != nil {
+				return errors.Wrapf(err, "failed to unmarshal Dynatrace API response from %s", fullURL)
+			}
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("request failed after %d attempts: %s %s", maxRetries, method, fullURL)
+}
+
+func (c *dynatraceClient) buildEnvRequest(ctx context.Context, method, fullURL string, rawJSON []byte) (*http.Request, error) {
+	var bodyReader io.Reader
+	if rawJSON != nil {
+		bodyReader = bytes.NewReader(rawJSON)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+
+	if c.apiToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Api-Token %s", c.apiToken))
+	} else if c.tokenManager != nil {
+		token, err := c.tokenManager.GetToken(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to obtain Dynatrace OAuth access token")
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if rawJSON != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
 func waitRetryAfter(ctx context.Context, headerVal string) error {
 	retryAfter := 1
 	if headerVal != "" {
@@ -234,3 +336,4 @@ func waitRetryAfter(ctx context.Context, headerVal string) error {
 		return nil
 	}
 }
+

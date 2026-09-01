@@ -67,6 +67,7 @@ func main() {
 		changelogsSocketPath     = app.Flag("changelogs-socket-path", "Path for changelogs socket (if enabled)").Default("/var/run/changelogs/changelogs.sock").Envar("CHANGELOGS_SOCKET_PATH").String()
 		metricsBindAddress       = app.Flag("metrics-bind-address", "The address the metric endpoint binds to (set to 0 to disable)").Default(":8085").Envar("METRICS_BIND_ADDRESS").String()
 	)
+
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	zl := zap.New(zap.UseDevMode(*debug))

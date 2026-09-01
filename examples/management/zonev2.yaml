@@ -1,0 +1,60 @@
+# Scenario 1: Basic Management Zone
+apiVersion: management.dynatrace.crossplane.io/v1alpha1
+kind: ZoneV2
+metadata:
+  name: platform-team-zone
+spec:
+  forProvider:
+    name: "Platform Team Zone"
+    description: "Management zone for platform team resources managed by Crossplane"
+  providerConfigRef:
+    name: default
+---
+# Scenario 2: Host Rule Management Zone
+apiVersion: management.dynatrace.crossplane.io/v1alpha1
+kind: ZoneV2
+metadata:
+  name: prod-hosts-zone
+spec:
+  forProvider:
+    name: "Production Hosts Zone"
+    description: "Management zone targeting production hosts"
+    rules:
+      - rule:
+          - type: "ME"
+            enabled: true
+            attributeRule:
+              - entityType: "HOST"
+                hostToPgpropagation: true
+                attributeConditions:
+                  - condition:
+                      - key: "HOST_NAME"
+                        operator: "CONTAINS"
+                        stringValue: "prod"
+                        caseSensitive: false
+  providerConfigRef:
+    name: default
+---
+# Scenario 3: Web App Rule with Propagation
+apiVersion: management.dynatrace.crossplane.io/v1alpha1
+kind: ZoneV2
+metadata:
+  name: frontend-services-zone
+spec:
+  forProvider:
+    name: "Frontend Services Zone"
+    description: "Management zone for frontend services and applications"
+    rules:
+      - rule:
+          - type: "ME"
+            enabled: true
+            attributeRule:
+              - entityType: "WEB_APPLICATION"
+                attributeConditions:
+                  - condition:
+                      - key: "WEB_APPLICATION_NAME"
+                        operator: "BEGINS_WITH"
+                        stringValue: "frontend"
+                        caseSensitive: false
+  providerConfigRef:
+    name: default

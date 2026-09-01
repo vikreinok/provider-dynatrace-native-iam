@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	iamv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/iam/v1alpha1"
+	managementv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/management/v1alpha1"
 	dynatracev1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/v1alpha1"
 )
 
@@ -29,8 +30,10 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		dynatracev1alpha1.SchemeBuilder.AddToScheme,
 		iamv1alpha1.SchemeBuilder.AddToScheme,
+		managementv1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
+
 
 // AddToSchemes may be used to add all resources defined in the project to a Scheme
 var AddToSchemes runtime.SchemeBuilder

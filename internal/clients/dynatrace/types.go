@@ -172,6 +172,101 @@ type ServiceUserListDto struct {
 	Items []ServiceUserDto `json:"items"`
 }
 
+// SettingsObjectResponseDto represents an item returned when creating/updating settings objects.
+type SettingsObjectResponseDto struct {
+	ObjectID string `json:"objectId"`
+	Code     int    `json:"code,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+// SettingsObjectItemDto represents a single settings object from GET /api/v2/settings/objects.
+type SettingsObjectItemDto struct {
+	ObjectID string                `json:"objectId"`
+	SchemaID string                `json:"schemaId"`
+	Scope    string                `json:"scope"`
+	Value    ManagementZoneV2Value `json:"value"`
+}
+
+// SettingsObjectsListDto represents the list response from GET /api/v2/settings/objects.
+type SettingsObjectsListDto struct {
+	TotalCount  int                     `json:"totalCount"`
+	PageSize    int                     `json:"pageSize"`
+	NextPageKey string                  `json:"nextPageKey,omitempty"`
+	Items       []SettingsObjectItemDto `json:"items"`
+}
+
+// SettingsObjectCreateDto represents the body to POST /api/v2/settings/objects.
+type SettingsObjectCreateDto struct {
+	SchemaID      string                `json:"schemaId"`
+	SchemaVersion string                `json:"schemaVersion,omitempty"`
+	Scope         string                `json:"scope"`
+	Value         ManagementZoneV2Value `json:"value"`
+}
+
+// SettingsObjectUpdateDto represents the body to PUT /api/v2/settings/objects/{objectId}.
+type SettingsObjectUpdateDto struct {
+	Value ManagementZoneV2Value `json:"value"`
+}
+
+// ManagementZoneV2Value represents the payload of builtin:management-zones.
+type ManagementZoneV2Value struct {
+	Name        string        `json:"name"`
+	Description string        `json:"description,omitempty"`
+	LegacyID    string        `json:"legacyId,omitempty"`
+	Rules       []ZoneRuleDto `json:"rules,omitempty"`
+}
+
+// ZoneRuleDto represents a single rule in a Management Zone V2.
+type ZoneRuleDto struct {
+	Type           string            `json:"type"` // ME, DIMENSION, SELECTOR
+	Enabled        bool              `json:"enabled"`
+	EntitySelector string            `json:"entitySelector,omitempty"`
+	AttributeRule  *AttributeRuleDto `json:"attributeRule,omitempty"`
+	DimensionRule  *DimensionRuleDto `json:"dimensionRule,omitempty"`
+}
+
+// AttributeRuleDto represents entity filtering rules for Monitored Entities.
+type AttributeRuleDto struct {
+	EntityType                                 string                  `json:"entityType"`
+	HostToPgpropagation                        *bool                   `json:"hostToPgpropagation,omitempty"`
+	PgToHostPropagation                        *bool                   `json:"pgToHostPropagation,omitempty"`
+	PgToServicePropagation                     *bool                   `json:"pgToServicePropagation,omitempty"`
+	ServiceToHostPropagation                   *bool                   `json:"serviceToHostPropagation,omitempty"`
+	ServiceToPgpropagation                     *bool                   `json:"serviceToPgpropagation,omitempty"`
+	AzureToPgpropagation                       *bool                   `json:"azureToPgpropagation,omitempty"`
+	AzureToServicePropagation                  *bool                   `json:"azureToServicePropagation,omitempty"`
+	CustomDeviceGroupToCustomDevicePropagation *bool                   `json:"customDeviceGroupToCustomDevicePropagation,omitempty"`
+	AttributeConditions                        []AttributeConditionDto `json:"attributeConditions,omitempty"`
+}
+
+// AttributeConditionDto represents a single attribute condition.
+type AttributeConditionDto struct {
+	Key              string   `json:"key"`
+	Operator         string   `json:"operator"`
+	StringValue      *string  `json:"stringValue,omitempty"`
+	EnumValue        *string  `json:"enumValue,omitempty"`
+	IntegerValue     *float64 `json:"integerValue,omitempty"`
+	EntityID         *string  `json:"entityId,omitempty"`
+	DynamicKey       *string  `json:"dynamicKey,omitempty"`
+	DynamicKeySource *string  `json:"dynamicKeySource,omitempty"`
+	CaseSensitive    *bool    `json:"caseSensitive,omitempty"`
+	Tag              *string  `json:"tag,omitempty"`
+}
+
+// DimensionRuleDto represents dimensional data filtering rules.
+type DimensionRuleDto struct {
+	AppliesTo           string                  `json:"appliesTo"`
+	DimensionConditions []DimensionConditionDto `json:"dimensionConditions,omitempty"`
+}
+
+// DimensionConditionDto represents a single dimension condition.
+type DimensionConditionDto struct {
+	ConditionType string  `json:"conditionType"`
+	Key           *string `json:"key,omitempty"`
+	RuleMatcher   string  `json:"ruleMatcher"`
+	Value         string  `json:"value"`
+}
+
 // APIError represents an error response from Dynatrace API.
 type APIError struct {
 	StatusCode int
@@ -217,3 +312,4 @@ func IsUUID(s string) bool {
 	}
 	return true
 }
+
