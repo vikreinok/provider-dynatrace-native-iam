@@ -124,6 +124,67 @@ func TestCostCenterCreate(t *testing.T) {
 	}
 }
 
+func TestCostCenterCreate_AlreadyExists(t *testing.T) {
+	client := &mockDynatraceClient{
+		MockAddCostCenter: func(ctx context.Context, key string) error {
+			return &dtclient.APIError{
+				StatusCode: 400,
+				Message:    "Dynatrace API error (HTTP 400): {\"error\":true,\"message\":\"At least one of the values has already been stored for this account and dimension.\",\"payload\":null}",
+				RawBody:    "{\"error\":true,\"message\":\"At least one of the values has already been stored for this account and dimension.\",\"payload\":null}",
+			}
+		},
+	}
+
+	e := &external{client: client}
+	mg := &iamv1alpha1.CostCenter{
+		Spec: iamv1alpha1.CostCenterSpec{
+			ForProvider: iamv1alpha1.CostCenterParameters{
+				CostCenter: "CC-EXISTING-01",
+			},
+		},
+	}
+
+	_, err := e.Create(context.Background(), mg)
+	if err != nil {
+		t.Fatalf("Create() with already existing cost center should succeed, got error: %v", err)
+	}
+
+	if ext := meta.GetExternalName(mg); ext != "CC-EXISTING-01" {
+		t.Errorf("ExternalName = %s, want CC-EXISTING-01", ext)
+	}
+	if mg.Status.AtProvider.ID != "CC-EXISTING-01" {
+		t.Errorf("Status.AtProvider.ID = %s, want CC-EXISTING-01", mg.Status.AtProvider.ID)
+	}
+	if mg.Status.AtProvider.CostCenter != "CC-EXISTING-01" {
+		t.Errorf("Status.AtProvider.CostCenter = %s, want CC-EXISTING-01", mg.Status.AtProvider.CostCenter)
+	}
+}
+
+func TestCostCenterCreate_Error(t *testing.T) {
+	client := &mockDynatraceClient{
+		MockAddCostCenter: func(ctx context.Context, key string) error {
+			return &dtclient.APIError{
+				StatusCode: 500,
+				Message:    "Internal Server Error",
+			}
+		},
+	}
+
+	e := &external{client: client}
+	mg := &iamv1alpha1.CostCenter{
+		Spec: iamv1alpha1.CostCenterSpec{
+			ForProvider: iamv1alpha1.CostCenterParameters{
+				CostCenter: "CC-FAIL-01",
+			},
+		},
+	}
+
+	_, err := e.Create(context.Background(), mg)
+	if err == nil {
+		t.Fatal("expected error on HTTP 500, got nil")
+	}
+}
+
 func TestCostCenterDelete(t *testing.T) {
 	deletedKey := ""
 	client := &mockDynatraceClient{

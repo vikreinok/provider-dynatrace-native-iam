@@ -480,6 +480,58 @@ func TestLive_CostCenterLifecycle(t *testing.T) {
 	t.Log("CostCenter lifecycle verified successfully on live Dynatrace API")
 }
 
+// [Positive Test] CostCenter duplicate creation handles already-exists error gracefully.
+func TestLive_CostCenterAlreadyExists(t *testing.T) {
+	client, _ := getLiveClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	ccKey := "E2E-CC-DUP-" + time.Now().Format("150405")
+	t.Logf("Creating initial cost center: %s", ccKey)
+
+	// 1. Initial creation
+	err := client.AddCostCenter(ctx, ccKey)
+	if err != nil {
+		t.Fatalf("Initial AddCostCenter failed: %v", err)
+	}
+
+	defer func() {
+		t.Logf("Cleaning up cost center: %s", ccKey)
+		_ = client.DeleteCostCenter(context.Background(), ccKey)
+	}()
+
+	// 2. Add same cost center again -> should return already exists error
+	dupErr := client.AddCostCenter(ctx, ccKey)
+	if dupErr == nil {
+		t.Fatalf("Expected duplicate AddCostCenter to return error, got nil")
+	}
+	if !dtclient.IsAlreadyExists(dupErr) {
+		t.Fatalf("Expected duplicate error to be identified by IsAlreadyExists, got: %v", dupErr)
+	}
+	t.Logf("Successfully verified duplicate error is recognized by IsAlreadyExists: %v", dupErr)
+
+	// 3. Verify GetCostCenter finds the pre-existing entry
+	cc, err := client.GetCostCenter(ctx, ccKey)
+	if err != nil {
+		t.Fatalf("GetCostCenter failed for existing cost center: %v", err)
+	}
+	if cc.Key != ccKey {
+		t.Errorf("GetCostCenter key = %s, want %s", cc.Key, ccKey)
+	}
+}
+
+// Helper to seed a cost center directly via API for Kind cluster adoption test
+func TestLive_SeedPreexistingCostCenter(t *testing.T) {
+	client, _ := getLiveClient(t)
+	ctx := context.Background()
+	key := "E2E-PREEXISTING-API-CC"
+	err := client.AddCostCenter(ctx, key)
+	if err != nil && !dtclient.IsAlreadyExists(err) {
+		t.Fatalf("Failed to seed cost center: %v", err)
+	}
+	t.Logf("Seeded pre-existing cost center in Dynatrace API: %s", key)
+}
+
 // -----------------------------------------------------------------------------
 // SCENARIO 6: Authentication & Credentials Failure
 // -----------------------------------------------------------------------------

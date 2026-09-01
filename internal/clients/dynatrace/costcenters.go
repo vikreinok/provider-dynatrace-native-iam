@@ -11,11 +11,27 @@ import (
 
 func (c *dynatraceClient) ListCostCenters(ctx context.Context) (*PaginatedFieldValueDto, error) {
 	path := fmt.Sprintf("/v1/accounts/%s/settings/costcenters", c.accountID)
-	var out PaginatedFieldValueDto
-	if err := c.doRequest(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
+	var allRecords []FieldValueDto
+	page := 1
+	for {
+		pagePath := path
+		if page > 1 {
+			pagePath = fmt.Sprintf("%s?page=%d", path, page)
+		}
+		var out PaginatedFieldValueDto
+		if err := c.doRequest(ctx, http.MethodGet, pagePath, nil, &out); err != nil {
+			return nil, err
+		}
+		allRecords = append(allRecords, out.Records...)
+		if !out.HasNextPage || len(out.Records) == 0 {
+			break
+		}
+		page++
 	}
-	return &out, nil
+	return &PaginatedFieldValueDto{
+		Records:     allRecords,
+		HasNextPage: false,
+	}, nil
 }
 
 func (c *dynatraceClient) GetCostCenter(ctx context.Context, key string) (*FieldValueDto, error) {

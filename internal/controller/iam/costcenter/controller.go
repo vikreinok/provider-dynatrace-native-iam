@@ -109,7 +109,9 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	key := cr.Spec.ForProvider.CostCenter
 	if err := e.client.AddCostCenter(ctx, key); err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, errCreateCostCenter)
+		if !dtclient.IsAlreadyExists(err) {
+			return managed.ExternalCreation{}, errors.Wrap(err, errCreateCostCenter)
+		}
 	}
 
 	meta.SetExternalName(cr, key)

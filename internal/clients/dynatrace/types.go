@@ -2,6 +2,7 @@ package dynatrace
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -288,6 +289,35 @@ func IsNotFound(err error) bool {
 		return true
 	}
 	return false
+}
+
+// IsAlreadyExists returns true if the error represents a resource conflict or duplicate error from Dynatrace.
+func IsAlreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		if apiErr.StatusCode == 409 {
+			return true
+		}
+		if apiErr.StatusCode == 400 {
+			lowerMsg := strings.ToLower(apiErr.Message)
+			lowerBody := strings.ToLower(apiErr.RawBody)
+			if strings.Contains(lowerMsg, "already been stored") ||
+				strings.Contains(lowerMsg, "already exists") ||
+				strings.Contains(lowerMsg, "already exist") ||
+				strings.Contains(lowerBody, "already been stored") ||
+				strings.Contains(lowerBody, "already exists") ||
+				strings.Contains(lowerBody, "already exist") {
+				return true
+			}
+		}
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "already been stored") ||
+		strings.Contains(lower, "already exists") ||
+		strings.Contains(lower, "already exist")
 }
 
 // isHexByte returns true if the byte is a valid hexadecimal character.
