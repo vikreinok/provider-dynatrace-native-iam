@@ -31,6 +31,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		iamv1alpha1.CostCenterGroupVersionKind,
 		iamv1alpha1.CostCenterGroupKind,
 		&iamv1alpha1.CostCenter{},
+		&iamv1alpha1.CostCenterList{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
@@ -48,6 +49,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		iamv1alpha1.CostCenterGroupVersionKind,
 		iamv1alpha1.CostCenterGroupKind,
 		&iamv1alpha1.CostCenter{},
+		&iamv1alpha1.CostCenterList{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {

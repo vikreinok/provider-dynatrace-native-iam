@@ -37,6 +37,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}GroupVersionKind,
 		{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}GroupKind,
 		&{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}{},
+		&{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}List{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
@@ -54,6 +55,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}GroupVersionKind,
 		{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}GroupKind,
 		&{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}{},
+		&{{ .Env.APIVERSION | strings.ToLower }}.{{ .Env.KIND }}List{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {

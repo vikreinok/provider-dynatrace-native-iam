@@ -26,6 +26,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +66,7 @@ func SetupManagedController(
 	gvk schema.GroupVersionKind,
 	groupKind string,
 	forObject client.Object,
+	forList resource.ManagedList,
 	externalConnector managed.ExternalConnector,
 ) error {
 	name := managed.ControllerName(groupKind)
@@ -89,6 +91,15 @@ func SetupManagedController(
 		opts = append(opts, managed.WithMetricRecorder(o.MetricOptions.MRMetrics))
 	}
 
+	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil && forList != nil {
+		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, forList, o.MetricOptions.PollStateMetricInterval,
+		)
+		if err := mgr.Add(stateMetricsRecorder); err != nil {
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind "+gvk.String())
+		}
+	}
+
 	r := managed.NewReconciler(mgr, resource.ManagedKind(gvk), opts...)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -105,13 +116,14 @@ func SetupGatedManagedController(
 	gvk schema.GroupVersionKind,
 	groupKind string,
 	forObject client.Object,
+	forList resource.ManagedList,
 	externalConnector managed.ExternalConnector,
 ) error {
 	if o.Gate == nil {
-		return SetupManagedController(mgr, o, gvk, groupKind, forObject, externalConnector)
+		return SetupManagedController(mgr, o, gvk, groupKind, forObject, forList, externalConnector)
 	}
 	o.Gate.Register(func() {
-		if err := SetupManagedController(mgr, o, gvk, groupKind, forObject, externalConnector); err != nil {
+		if err := SetupManagedController(mgr, o, gvk, groupKind, forObject, forList, externalConnector); err != nil {
 			mgr.GetLogger().Error(err, "unable to setup reconciler", "gvk", gvk.String())
 		}
 	}, gvk)

@@ -65,7 +65,7 @@ func main() {
 		enableManagementPolicies = app.Flag("enable-management-policies", "Enable support for Management Policies.").Default("true").Envar("ENABLE_MANAGEMENT_POLICIES").Bool()
 		enableChangeLogs         = app.Flag("enable-changelogs", "Enable support for capturing change logs during reconciliation.").Default("false").Envar("ENABLE_CHANGE_LOGS").Bool()
 		changelogsSocketPath     = app.Flag("changelogs-socket-path", "Path for changelogs socket (if enabled)").Default("/var/run/changelogs/changelogs.sock").Envar("CHANGELOGS_SOCKET_PATH").String()
-		metricsBindAddress       = app.Flag("metrics-bind-address", "The address the metric endpoint binds to (set to 0 to disable)").Default(":8085").Envar("METRICS_BIND_ADDRESS").String()
+		metricsBindAddress       = app.Flag("metrics-bind-address", "The address the metric endpoint binds to (set to 0 to disable)").Default(":8080").Envar("METRICS_BIND_ADDRESS").String()
 	)
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))

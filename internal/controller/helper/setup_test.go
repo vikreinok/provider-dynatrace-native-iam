@@ -127,6 +127,7 @@ func TestSetupGatedManagedController_WithGate(t *testing.T) {
 		iamv1alpha1.PolicyGroupVersionKind,
 		iamv1alpha1.PolicyGroupKind,
 		&iamv1alpha1.Policy{},
+		&iamv1alpha1.PolicyList{},
 		&DynatraceConnector{},
 	)
 

@@ -33,6 +33,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		iamv1alpha1.GroupGroupVersionKind,
 		iamv1alpha1.GroupGroupKind,
 		&iamv1alpha1.Group{},
+		&iamv1alpha1.GroupList{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
@@ -50,6 +51,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		iamv1alpha1.GroupGroupVersionKind,
 		iamv1alpha1.GroupGroupKind,
 		&iamv1alpha1.Group{},
+		&iamv1alpha1.GroupList{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {

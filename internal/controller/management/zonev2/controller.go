@@ -34,6 +34,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		managementv1alpha1.ZoneV2GroupVersionKind,
 		managementv1alpha1.ZoneV2GroupKind,
 		&managementv1alpha1.ZoneV2{},
+		&managementv1alpha1.ZoneV2List{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
@@ -51,6 +52,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managementv1alpha1.ZoneV2GroupVersionKind,
 		managementv1alpha1.ZoneV2GroupKind,
 		&managementv1alpha1.ZoneV2{},
+		&managementv1alpha1.ZoneV2List{},
 		&helper.DynatraceConnector{
 			Kube: mgr.GetClient(),
 			NewExternalClientFn: func(client dtclient.Client) managed.ExternalClient {
