@@ -33,13 +33,21 @@ metadata:
   name: dynatrace-creds
   namespace: crossplane-system
 type: Opaque
+# Authentication Model:
+# - iam_client_id / iam_client_secret: Required for Account IAM resources (Group, Policy, User, etc.)
+# - platform_token: Dynatrace Platform Token (dt0s16...) assigned to a Service User.
+#   Used by ZoneV2 (builtin:management-zones) to ensure all Settings 2.0 changes are attributed
+#   to the Service User in Dynatrace audit events.
+# - dt_api_token: Optional classic API token (dt0c01...) supported as fallback.
 stringData:
   credentials: |
     {
       "dt_env_url": "https://<your-environment-id>.live.dynatrace.com",
       "iam_account_id": "<your-iam-account-id>",
       "iam_client_id": "<your-iam-client-id>",
-      "iam_client_secret": "<your-iam-client-secret>"
+      "iam_client_secret": "<your-iam-client-secret>",
+      "platform_token": "dt0s16.<service-user-token>",
+      "dt_api_token": "dt0c01.<optional-fallback-token>"
     }
 ```
 

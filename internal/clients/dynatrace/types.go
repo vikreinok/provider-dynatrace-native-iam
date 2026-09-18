@@ -12,7 +12,8 @@ type Credentials struct {
 	ClientID     string `json:"iam_client_id"`
 	ClientSecret string `json:"iam_client_secret"`
 	EnvURL       string `json:"dt_env_url,omitempty"`
-	APIToken     string `json:"dt_api_token,omitempty"`
+	APIToken      string `json:"dt_api_token,omitempty"`
+	PlatformToken string `json:"platform_token,omitempty"`
 }
 
 // OAuthTokenResponse represents response from sso.dynatrace.com OAuth token endpoint.

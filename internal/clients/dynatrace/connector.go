@@ -22,8 +22,10 @@ type RawCredentials struct {
 	DTClientID     string `json:"dt_client_id"`
 	ClientSecret   string `json:"iam_client_secret"`
 	DTClientSecret string `json:"dt_client_secret"`
-	EnvURL         string `json:"dt_env_url"`
-	APIToken       string `json:"dt_api_token"`
+	EnvURL          string `json:"dt_env_url"`
+	APIToken        string `json:"dt_api_token"`
+	PlatformToken   string `json:"platform_token"`
+	DTPlatformToken string `json:"dt_platform_token"`
 }
 
 // GetClientFromProviderConfig retrieves credentials from a ClusterProviderConfig or ProviderConfig and returns a Dynatrace Client.
@@ -62,13 +64,18 @@ func ParseCredentialsJSON(data []byte) (Credentials, error) {
 	if resolvedClientSecret == "" {
 		resolvedClientSecret = raw.DTClientSecret
 	}
+	resolvedPlatformToken := raw.PlatformToken
+	if resolvedPlatformToken == "" {
+		resolvedPlatformToken = raw.DTPlatformToken
+	}
 
 	return Credentials{
-		AccountID:    resolvedAccountID,
-		ClientID:     resolvedClientID,
-		ClientSecret: resolvedClientSecret,
-		EnvURL:       raw.EnvURL,
-		APIToken:     raw.APIToken,
+		AccountID:     resolvedAccountID,
+		ClientID:      resolvedClientID,
+		ClientSecret:  resolvedClientSecret,
+		EnvURL:        raw.EnvURL,
+		APIToken:      raw.APIToken,
+		PlatformToken: resolvedPlatformToken,
 	}, nil
 }
 

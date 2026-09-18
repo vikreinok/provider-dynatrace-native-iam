@@ -75,12 +75,13 @@ type Client interface {
 }
 
 type dynatraceClient struct {
-	accountID    string
-	baseURL      string
-	envURL       string
-	apiToken     string
-	tokenManager *TokenManager
-	httpClient   *http.Client
+	accountID     string
+	baseURL       string
+	envURL        string
+	apiToken      string
+	platformToken string
+	tokenManager  *TokenManager
+	httpClient    *http.Client
 }
 
 // NewClient creates a new Dynatrace API Client.
@@ -95,12 +96,13 @@ func NewClient(creds Credentials, opts ...ClientOption) (Client, error) {
 	}
 
 	c := &dynatraceClient{
-		accountID:    creds.AccountID,
-		baseURL:      defaultBaseURL,
-		envURL:       strings.TrimSuffix(creds.EnvURL, "/"),
-		apiToken:     creds.APIToken,
-		tokenManager: tm,
-		httpClient:   &http.Client{Timeout: 60 * time.Second},
+		accountID:     creds.AccountID,
+		baseURL:       defaultBaseURL,
+		envURL:        strings.TrimSuffix(creds.EnvURL, "/"),
+		apiToken:      creds.APIToken,
+		platformToken: creds.PlatformToken,
+		tokenManager:  tm,
+		httpClient:    &http.Client{Timeout: 60 * time.Second},
 	}
 
 	for _, opt := range opts {
@@ -176,6 +178,10 @@ func (c *dynatraceClient) buildRequest(ctx context.Context, method, fullURL stri
 	var bodyReader io.Reader
 	if rawJSON != nil {
 		bodyReader = bytes.NewReader(rawJSON)
+	}
+
+	if c.tokenManager == nil {
+		return nil, errors.New("missing iam_client_id or iam_client_secret in credentials for IAM account API")
 	}
 
 	token, err := c.tokenManager.GetToken(ctx)
@@ -305,7 +311,9 @@ func (c *dynatraceClient) buildEnvRequest(ctx context.Context, method, fullURL s
 		return nil, errors.Wrap(err, "failed to create HTTP request")
 	}
 
-	if c.apiToken != "" {
+	if c.platformToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.platformToken))
+	} else if c.apiToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Api-Token %s", c.apiToken))
 	} else if c.tokenManager != nil {
 		token, err := c.tokenManager.GetToken(ctx)
@@ -313,6 +321,8 @@ func (c *dynatraceClient) buildEnvRequest(ctx context.Context, method, fullURL s
 			return nil, errors.Wrap(err, "failed to obtain Dynatrace OAuth access token")
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	} else {
+		return nil, errors.New("no valid credentials provided for environment API request (missing platform_token, dt_api_token, or OAuth client credentials)")
 	}
 
 	req.Header.Set("Accept", "application/json")

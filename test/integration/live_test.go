@@ -24,6 +24,7 @@ func getLiveCredentials(t *testing.T) dtclient.Credentials {
 	clientSecret := os.Getenv("DT_CLIENT_SECRET")
 	envURL := os.Getenv("DT_ENV_URL")
 	apiToken := os.Getenv("DT_API_TOKEN")
+	platformToken := os.Getenv("DT_PLATFORM_TOKEN")
 
 	if accountID == "" || clientID == "" || clientSecret == "" {
 		// Attempt to read from secret.yaml if present
@@ -42,6 +43,9 @@ func getLiveCredentials(t *testing.T) dtclient.Credentials {
 					clientSecret = creds.ClientSecret
 					envURL = creds.EnvURL
 					apiToken = creds.APIToken
+					if platformToken == "" {
+						platformToken = creds.PlatformToken
+					}
 				}
 			}
 		}
@@ -52,11 +56,12 @@ func getLiveCredentials(t *testing.T) dtclient.Credentials {
 	}
 
 	return dtclient.Credentials{
-		AccountID:    accountID,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		EnvURL:       envURL,
-		APIToken:     apiToken,
+		AccountID:     accountID,
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		EnvURL:        envURL,
+		APIToken:      apiToken,
+		PlatformToken: platformToken,
 	}
 }
 
