@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/config"
+	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/host/entity"
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/costcenter"
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/group"
 	"github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/iam/policy"
@@ -44,6 +45,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		user.SetupGated,
 		serviceuser.SetupGated,
 		zonev2.SetupGated,
+		entity.SetupGated,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

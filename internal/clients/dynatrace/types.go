@@ -350,3 +350,24 @@ func IsUUID(s string) bool {
 	return true
 }
 
+// HostEntityTagDto represents a tag on an entity in Dynatrace.
+type HostEntityTagDto struct {
+	Context              *string `json:"context,omitempty"`
+	Key                  *string `json:"key,omitempty"`
+	Value                *string `json:"value,omitempty"`
+	StringRepresentation *string `json:"stringRepresentation,omitempty"`
+}
+
+// HostEntityItemDto represents a single entity item in the Entities API v2 response.
+type HostEntityItemDto struct {
+	EntityID    string             `json:"entityId"`
+	Type        string             `json:"type"`
+	DisplayName string             `json:"displayName"`
+	Tags        []HostEntityTagDto `json:"tags"`
+}
+
+// HostEntitiesResponseDto represents the response from GET /api/v2/entities.
+type HostEntitiesResponseDto struct {
+	TotalCount int                 `json:"totalCount"`
+	Entities   []HostEntityItemDto `json:"entities"`
+}

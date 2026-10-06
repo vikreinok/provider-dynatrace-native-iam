@@ -20,6 +20,7 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
+	hostv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/host/v1alpha1"
 	iamv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/iam/v1alpha1"
 	managementv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/management/v1alpha1"
 	dynatracev1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/v1alpha1"
@@ -31,6 +32,7 @@ func init() {
 		dynatracev1alpha1.SchemeBuilder.AddToScheme,
 		iamv1alpha1.SchemeBuilder.AddToScheme,
 		managementv1alpha1.SchemeBuilder.AddToScheme,
+		hostv1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 

@@ -72,6 +72,9 @@ type Client interface {
 	CreateManagementZoneV2(ctx context.Context, value ManagementZoneV2Value) (*SettingsObjectResponseDto, error)
 	UpdateManagementZoneV2(ctx context.Context, objectID string, value ManagementZoneV2Value) error
 	DeleteManagementZoneV2(ctx context.Context, objectID string) error
+
+	// Host Entity operations
+	LookupHostEntity(ctx context.Context, entityType, entityName string) (string, []HostEntityTagDto, int, error)
 }
 
 type dynatraceClient struct {
@@ -273,6 +276,25 @@ func (c *dynatraceClient) doEnvRequest(ctx context.Context, method, path string,
 				return err
 			}
 			continue
+		}
+
+		if (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized) &&
+			c.platformToken != "" && c.apiToken != "" &&
+			req.Header.Get("Authorization") == fmt.Sprintf("Bearer %s", c.platformToken) {
+			// Platform token lacks permissions for this endpoint; fallback to dt_api_token
+			fallbackReq, fbErr := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(rawJSON))
+			if fbErr == nil {
+				fallbackReq.Header.Set("Authorization", fmt.Sprintf("Api-Token %s", c.apiToken))
+				fallbackReq.Header.Set("Accept", "application/json")
+				if rawJSON != nil {
+					fallbackReq.Header.Set("Content-Type", "application/json")
+				}
+				fallbackResp, fbErr := c.httpClient.Do(fallbackReq)
+				if fbErr == nil {
+					_ = resp.Body.Close()
+					resp = fallbackResp
+				}
+			}
 		}
 
 		respBody, err := io.ReadAll(resp.Body)

@@ -14,9 +14,13 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
-	dtclient "github.com/vikreinok/provider-dynatrace-native-iam/internal/clients/dynatrace"
-)
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
+	hostv1alpha1 "github.com/vikreinok/provider-dynatrace-native-iam/apis/host/v1alpha1"
+	dtclient "github.com/vikreinok/provider-dynatrace-native-iam/internal/clients/dynatrace"
+	hostcontroller "github.com/vikreinok/provider-dynatrace-native-iam/internal/controller/host/entity"
+)
 
 func getLiveCredentials(t *testing.T) dtclient.Credentials {
 	accountID := os.Getenv("DT_ACCOUNT_ID")
@@ -64,7 +68,6 @@ func getLiveCredentials(t *testing.T) dtclient.Credentials {
 		PlatformToken: platformToken,
 	}
 }
-
 
 func getLiveClient(t *testing.T) (dtclient.Client, dtclient.Credentials) {
 	creds := getLiveCredentials(t)
@@ -654,3 +657,141 @@ func TestLive_ManagementZoneV2Validation(t *testing.T) {
 	}
 }
 
+// -----------------------------------------------------------------------------
+// SCENARIO 8: HostEntity Resolution & Tag Verification
+// -----------------------------------------------------------------------------
+
+func TestLive_HostEntity(t *testing.T) {
+	client, creds := getLiveClient(t)
+	if creds.EnvURL == "" {
+		t.Skip("Live HostEntity test skipped: dt_env_url required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	t.Run("LookupExactHostName", func(t *testing.T) {
+		id, tags, count, err := client.LookupHostEntity(ctx, "HOST", "CityX")
+		if err != nil {
+			t.Fatalf("LookupHostEntity failed for CityX: %v", err)
+		}
+
+		if id == "" {
+			t.Fatalf("Expected non-empty entityId for CityX, got empty")
+		}
+		if id != "HOST-D6E60CF7996C2E61" {
+			t.Errorf("Expected entity ID HOST-D6E60CF7996C2E61, got %s", id)
+		}
+		if count < 1 {
+			t.Errorf("Expected count >= 1, got %d", count)
+		}
+
+		t.Logf("Found host %s with ID %s (count: %d, tags: %d)", "CityX", id, count, len(tags))
+
+		// Verify tags and properties on CityX
+		if len(tags) == 0 {
+			t.Fatalf("Expected CityX to have tags, but got 0 tags")
+		}
+
+		expectedTags := map[string]string{
+			"primary_tags.company.com/service":             "SV-XYZ2",
+			"primary_tags.company.com/purpose":             "Development",
+			"primary_tags.company.com/service-environment": "SE-XYZ2-ABCD",
+			"dt.security_context":                          "SV-XYZ2.Development",
+			"dt.cost.costcenter":                           "SV-XYZ2",
+		}
+
+		foundTags := make(map[string]string)
+		for _, tag := range tags {
+			if tag.Key != nil && tag.Value != nil {
+				foundTags[*tag.Key] = *tag.Value
+			}
+		}
+
+		for expK, expV := range expectedTags {
+			if val, ok := foundTags[expK]; !ok {
+				t.Errorf("Missing expected tag key %q on CityX", expK)
+			} else if val != expV {
+				t.Errorf("Expected tag %q to have value %q, got %q", expK, expV, val)
+			}
+		}
+	})
+
+	t.Run("LookupPrefixHostName", func(t *testing.T) {
+		id, _, count, err := client.LookupHostEntity(ctx, "HOST", "City*")
+		if err != nil {
+			t.Fatalf("LookupHostEntity prefix failed: %v", err)
+		}
+		if id != "HOST-D6E60CF7996C2E61" {
+			t.Errorf("Expected entity ID HOST-D6E60CF7996C2E61, got %s", id)
+		}
+		if count < 1 {
+			t.Errorf("Expected count >= 1, got %d", count)
+		}
+	})
+
+	t.Run("LookupWildcardHostName", func(t *testing.T) {
+		id, _, count, err := client.LookupHostEntity(ctx, "HOST", "*")
+		if err != nil {
+			t.Fatalf("LookupHostEntity wildcard failed: %v", err)
+		}
+		if id == "" {
+			t.Errorf("Expected non-empty entity ID for wildcard query")
+		}
+		if count < 1 {
+			t.Errorf("Expected count >= 1, got %d", count)
+		}
+	})
+
+	t.Run("LookupNonExistentHost", func(t *testing.T) {
+		id, tags, count, err := client.LookupHostEntity(ctx, "HOST", "non-existent-host-random-98765")
+		if err != nil {
+			t.Fatalf("LookupHostEntity for nonexistent host returned error: %v", err)
+		}
+		if id != "" {
+			t.Errorf("Expected empty entityId for nonexistent host, got %s", id)
+		}
+		if count != 0 {
+			t.Errorf("Expected count 0 for nonexistent host, got %d", count)
+		}
+		if len(tags) != 0 {
+			t.Errorf("Expected 0 tags for nonexistent host, got %d", len(tags))
+		}
+	})
+
+	t.Run("ControllerObserveLive", func(t *testing.T) {
+		ext := hostcontroller.NewExternalClient(client)
+		cr := &hostv1alpha1.HostEntity{
+			Spec: hostv1alpha1.HostEntitySpec{
+				ForProvider: hostv1alpha1.HostEntityParameters{
+					Name: ptr.To("CityX"),
+					Type: ptr.To("HOST"),
+				},
+			},
+		}
+
+		obs, err := ext.Observe(ctx, cr)
+		if err != nil {
+			t.Fatalf("Controller Observe failed: %v", err)
+		}
+
+		if !obs.ResourceExists {
+			t.Errorf("Expected ResourceExists = true")
+		}
+		if !obs.ResourceUpToDate {
+			t.Errorf("Expected ResourceUpToDate = true")
+		}
+		if meta.GetExternalName(cr) != "HOST-D6E60CF7996C2E61" {
+			t.Errorf("Expected external name HOST-D6E60CF7996C2E61, got %s", meta.GetExternalName(cr))
+		}
+		if cr.Status.AtProvider.EntityID == nil || *cr.Status.AtProvider.EntityID != "HOST-D6E60CF7996C2E61" {
+			t.Errorf("Expected Status.AtProvider.EntityID to be HOST-D6E60CF7996C2E61")
+		}
+		if len(cr.Status.AtProvider.Tags) < 5 {
+			t.Errorf("Expected at least 5 tags in Status.AtProvider.Tags, got %d", len(cr.Status.AtProvider.Tags))
+		}
+		if cond := cr.GetCondition(xpv2.TypeReady); cond.Status != "True" {
+			t.Errorf("Expected Ready condition True, got %v", cond)
+		}
+	})
+}
